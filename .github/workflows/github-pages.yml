@@ -33,7 +33,8 @@ jobs:
       - name: Install and build
         working-directory: tour
         run: |
-          npm ci
+          # 避免 lock 在 Windows 產生時與 Linux optional 套件不一致導致 npm ci 失敗
+          npm install --no-audit --no-fund
           npm run build
 
       - uses: actions/configure-pages@v4
