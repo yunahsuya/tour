@@ -1,3 +1,5 @@
+import { touchLocalDataSavedCookie } from './localDataMarker.js'
+
 const KEY = 'tour-spots-v1'
 
 function defaultSpots() {
@@ -21,6 +23,7 @@ export function saveSpots(data) {
   if (typeof localStorage === 'undefined') return
   try {
     localStorage.setItem(KEY, JSON.stringify(data))
+    touchLocalDataSavedCookie()
   } catch {
     // ignore
   }

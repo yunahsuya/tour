@@ -1,6 +1,36 @@
-import { googleMapsSearchUrl, osmEmbedUrl } from '../mapUtils.js'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { osmEmbedUrl, osmEmbedUrlAroundPoint, resolveLatLonForMapPreview } from '../mapUtils.js'
 
 export function MapPage({ current, items, mapPlaces }) {
+  const [mapEmbedSrc, setMapEmbedSrc] = useState(() =>
+    current ? osmEmbedUrl(current.region.id) : '',
+  )
+  const [activePlaceKey, setActivePlaceKey] = useState(null)
+  const previewAbortRef = useRef(null)
+
+  useEffect(() => {
+    if (!current) return
+    previewAbortRef.current?.abort()
+    setMapEmbedSrc(osmEmbedUrl(current.region.id))
+    setActivePlaceKey(null)
+  }, [current?.region?.id, current?.day?.id])
+
+  const focusPlaceOnMap = useCallback((href, title, placeKey) => {
+    setActivePlaceKey(placeKey)
+    previewAbortRef.current?.abort()
+    const ac = new AbortController()
+    previewAbortRef.current = ac
+    void (async () => {
+      try {
+        const pt = await resolveLatLonForMapPreview(href, title, ac.signal)
+        if (ac.signal.aborted || !pt) return
+        setMapEmbedSrc(osmEmbedUrlAroundPoint(pt.lat, pt.lon))
+      } catch {
+        /* 網路／中止：保留目前嵌入畫面 */
+      }
+    })()
+  }, [])
+
   if (!current) {
     return <p className="panel-empty">目前沒有行程日可顯示，請確認地區篩選。</p>
   }
@@ -10,7 +40,7 @@ export function MapPage({ current, items, mapPlaces }) {
         <iframe
           className="map-iframe"
           title="OpenStreetMap"
-          src={osmEmbedUrl(current.region.id)}
+          src={mapEmbedSrc || osmEmbedUrl(current.region.id)}
           loading="lazy"
         />
       </div>
@@ -54,10 +84,25 @@ export function MapPage({ current, items, mapPlaces }) {
       <div className="map-place-list">
         <p className="map-place-list-title">當日可搜地圖</p>
         <ul>
-          {mapPlaces.map(({ title, key }) => (
-            <li key={key}>
-              <a href={googleMapsSearchUrl(title)} target="_blank" rel="noreferrer">
+          {mapPlaces.map(({ title, key, href }) => (
+            <li key={key} className="map-place-row">
+              <button
+                type="button"
+                className={
+                  activePlaceKey === key ? 'map-place-focus map-place-focus--active' : 'map-place-focus'
+                }
+                onClick={() => focusPlaceOnMap(href, title, key)}
+              >
                 {title}
+              </button>
+              <a
+                className="map-place-open-btn"
+                href={href}
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label={`在新分頁開啟地圖連結：${title}`}
+              >
+                開啟連結
               </a>
             </li>
           ))}

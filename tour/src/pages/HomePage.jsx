@@ -5,6 +5,7 @@ import { MainItineraryCard } from '../components/trip/MainItineraryCard.jsx'
 export function HomePage({
   cardRef,
   current,
+  tripData,
   regionShort,
   items,
   simplePreviewItems,
@@ -38,6 +39,7 @@ export function HomePage({
         variant="home"
         cardRef={cardRef}
         current={current}
+        tripData={tripData}
         listItems={listItems}
         showAllItems={showAllItems}
         hiddenCount={hiddenCount}

@@ -1,4 +1,6 @@
 import { regions } from './data/trip.js'
+import { touchLocalDataSavedCookie } from './localDataMarker.js'
+import { normalizeTripItemOrder } from './utils/tripFormat.js'
 
 const STORAGE_KEY = 'tour-itinerary-v1'
 
@@ -13,7 +15,7 @@ export function loadTripData() {
     if (!raw) return cloneDefault()
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed) || parsed.length === 0) return cloneDefault()
-    return parsed
+    return normalizeTripItemOrder(parsed)
   } catch {
     return cloneDefault()
   }
@@ -23,6 +25,7 @@ export function saveTripData(data) {
   if (typeof localStorage === 'undefined') return
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    touchLocalDataSavedCookie()
   } catch {
     // quota or private mode
   }

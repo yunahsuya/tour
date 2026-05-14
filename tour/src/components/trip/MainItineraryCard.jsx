@@ -1,10 +1,13 @@
+import { useMemo } from 'react'
 import { IconCalendar } from '../icons/Icons.jsx'
 import { EditableItemRow } from './EditableItemRow.jsx'
+import { regionChipLabel } from '../../utils/tripFormat.js'
 
 export function MainItineraryCard({
   variant,
   cardRef,
   current,
+  tripData,
   listItems,
   showAllItems,
   hiddenCount,
@@ -14,6 +17,10 @@ export function MainItineraryCard({
   onRemoveItem,
 }) {
   const isHome = variant === 'home'
+  const regionTagOptions = useMemo(
+    () => (Array.isArray(tripData) ? tripData.map((r) => regionChipLabel(r)).filter(Boolean) : []),
+    [tripData],
+  )
   return (
     <main
       className={isHome ? 'main-card main-card--home' : 'main-card'}
@@ -50,17 +57,22 @@ export function MainItineraryCard({
       )}
 
       <div className={isHome ? 'trip-list trip-list--cards' : 'trip-list'}>
-        {listItems.map((item, i) => (
-          <EditableItemRow
-            key={`${current?.day.id}-${i}`}
-            item={item}
-            itemIndex={i}
-            onUpdate={onUpdateItem}
-            onRemove={onRemoveItem}
-            layout={isHome ? 'card' : 'row'}
-            regionLabel={current?.region.name.split('（')[0]?.trim() ?? ''}
-          />
-        ))}
+        {listItems.map((item, i) => {
+          const fallback = current?.region.name.split('（')[0]?.trim() ?? ''
+          return (
+            <EditableItemRow
+              key={`${current?.day.id}-${i}`}
+              item={item}
+              itemIndex={i}
+              onUpdate={onUpdateItem}
+              onRemove={onRemoveItem}
+              layout={isHome ? 'card' : 'row'}
+              regionLabel={(item.regionTag?.trim() || fallback).trim()}
+              regionFallbackLabel={fallback}
+              regionTagOptions={regionTagOptions}
+            />
+          )
+        })}
       </div>
 
       {!showAllItems && hiddenCount > 0 && (

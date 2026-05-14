@@ -12,6 +12,7 @@ import {
   addWalletEntry,
   addWalletItemLabel,
   loadWallet,
+  normalizeWallet,
   removeWalletEntry,
   saveWallet,
   sumAllByPayer,
@@ -20,15 +21,21 @@ import {
 import { formatForeignFromTwd, parseAmountInput, toTwd } from './fxRates.js'
 import { EMPTY_ITEMS, WALLET_PAYERS } from './constants/appConstants.js'
 import { appendItemToTrip, removeItemFromTrip, updateItemInTrip } from './tripEdit.js'
+import { mapHrefForTripItem } from './utils/tripFormat.js'
 import { DateStrip } from './components/layout/DateStrip.jsx'
 import { HeroHeader } from './components/layout/HeroHeader.jsx'
+import { stripLegacyShareQueryFromUrl } from './localDataMarker.js'
+import { ShareSyncBar } from './components/layout/ShareSyncBar.jsx'
 import { IconNav } from './components/icons/Icons.jsx'
 import { InfoPillPanel } from './components/trip/InfoPillPanel.jsx'
 import { HomePage } from './pages/HomePage.jsx'
 import { ItineraryPage } from './pages/ItineraryPage.jsx'
 import { MapPage } from './pages/MapPage.jsx'
 import { SpotsPage } from './pages/SpotsPage.jsx'
+import { PackingListPage } from './pages/PackingListPage.jsx'
 import { WalletPage } from './pages/WalletPage.jsx'
+import { PACKING_PROFILES } from './constants/packingProfiles.js'
+import { loadPackingState, newCustomItemId, newRefBulletId, persistPackingState } from './packingListStorage.js'
 import './App.css'
 
 export default function App() {
@@ -60,6 +67,7 @@ export default function App() {
   const [editSpotTitle, setEditSpotTitle] = useState('')
   const [editSpotNote, setEditSpotNote] = useState('')
   const [editSpotMapUrl, setEditSpotMapUrl] = useState('')
+  const [packingListState, setPackingListState] = useState(() => loadPackingState())
   const stripRef = useRef(null)
   const cardRef = useRef(null)
   const [isOffline, setIsOffline] = useState(
@@ -99,6 +107,10 @@ export default function App() {
     document.addEventListener('pointerdown', onPointerDown, true)
     return () => document.removeEventListener('pointerdown', onPointerDown, true)
   }, [walletItemMenuOpen])
+
+  useEffect(() => {
+    stripLegacyShareQueryFromUrl()
+  }, [])
 
   const allPairs = useMemo(() => flattenDays(tripData), [tripData])
 
@@ -152,6 +164,12 @@ export default function App() {
   function persist(nextTrip) {
     saveTripData(nextTrip)
     setTripData(nextTrip)
+  }
+
+  function commitWallet(next) {
+    const n = normalizeWallet(next)
+    saveWallet(n)
+    setWallet(n)
   }
 
   function handleUpdateItem(itemIndex, patch) {
@@ -250,8 +268,7 @@ export default function App() {
       paidBy: walletPaidBy,
     })
     const withLabel = addWalletItemLabel(next, itemTitle)
-    saveWallet(withLabel)
-    setWallet(withLabel)
+    commitWallet(withLabel)
     setWalletNote('')
     setWalletItemMenuOpen(false)
     setWalletItemNewDraft('')
@@ -265,8 +282,7 @@ export default function App() {
       return
     }
     const next = addWalletItemLabel(wallet, t)
-    saveWallet(next)
-    setWallet(next)
+    commitWallet(next)
     setWalletNote(t)
     setWalletItemNewDraft('')
     setWalletItemMenuOpen(false)
@@ -275,8 +291,7 @@ export default function App() {
   function handleRemoveWalletEntry(entryId) {
     if (!current?.day.id) return
     const next = removeWalletEntry(wallet, current.day.id, entryId)
-    saveWallet(next)
-    setWallet(next)
+    commitWallet(next)
   }
 
   function handleFxForeignInput(e) {
@@ -372,6 +387,147 @@ export default function App() {
     cancelEditSpot()
   }
 
+  function packingProfileLabel(profileId) {
+    return PACKING_PROFILES.find((p) => p.id === profileId)?.label ?? profileId
+  }
+
+  function handlePackingSelectProfile(profileId) {
+    setPackingListState((prev) => {
+      const next = { ...prev, activeProfileId: profileId }
+      persistPackingState(next)
+      return next
+    })
+  }
+
+  function handlePackingToggle(id) {
+    setPackingListState((prev) => {
+      const pid = prev.activeProfileId
+      const slice = prev.profiles[pid]
+      const nextChecked = new Set(slice.checked)
+      if (nextChecked.has(id)) nextChecked.delete(id)
+      else nextChecked.add(id)
+      const nextSlice = { ...slice, checked: nextChecked }
+      const nextProfiles = { ...prev.profiles, [pid]: nextSlice }
+      const next = { ...prev, profiles: nextProfiles }
+      persistPackingState(next)
+      return next
+    })
+  }
+
+  function handlePackingClearAll() {
+    const pid = packingListState.activeProfileId
+    if (!window.confirm(`要清除「${packingProfileLabel(pid)}」的所有勾選嗎？`)) return
+    setPackingListState((prev) => {
+      const id = prev.activeProfileId
+      const slice = prev.profiles[id]
+      const nextSlice = { ...slice, checked: new Set() }
+      const nextProfiles = { ...prev.profiles, [id]: nextSlice }
+      const next = { ...prev, profiles: nextProfiles }
+      persistPackingState(next)
+      return next
+    })
+  }
+
+  function handlePackingAddCustom(sectionId, label) {
+    const trimmed = label.trim()
+    if (!trimmed) return
+    setPackingListState((prev) => {
+      const pid = prev.activeProfileId
+      const slice = prev.profiles[pid]
+      const row = { id: newCustomItemId(), label: trimmed }
+      const list = [...(slice.customsBySection[sectionId] ?? []), row]
+      const nextCustoms = { ...slice.customsBySection, [sectionId]: list }
+      const nextSlice = { ...slice, customsBySection: nextCustoms }
+      const nextProfiles = { ...prev.profiles, [pid]: nextSlice }
+      const next = { ...prev, profiles: nextProfiles }
+      persistPackingState(next)
+      return next
+    })
+  }
+
+  function handlePackingRemoveCustom(sectionId, itemId) {
+    setPackingListState((prev) => {
+      const pid = prev.activeProfileId
+      const slice = prev.profiles[pid]
+      const list = (slice.customsBySection[sectionId] ?? []).filter((x) => x.id !== itemId)
+      const nextCustoms = { ...slice.customsBySection }
+      if (list.length) nextCustoms[sectionId] = list
+      else delete nextCustoms[sectionId]
+      const nextChecked = new Set(slice.checked)
+      nextChecked.delete(itemId)
+      const nextSlice = { checked: nextChecked, customsBySection: nextCustoms }
+      const nextProfiles = { ...prev.profiles, [pid]: nextSlice }
+      const next = { ...prev, profiles: nextProfiles }
+      persistPackingState(next)
+      return next
+    })
+  }
+
+  function handleRefUpdateTitle(blockKey, title) {
+    setPackingListState((prev) => {
+      const cur = prev.referenceBlocks[blockKey]
+      const trimmed = title.trim().slice(0, 200)
+      const nextBlock = { ...cur, title: trimmed || cur.title }
+      const rb = { ...prev.referenceBlocks, [blockKey]: nextBlock }
+      const next = { ...prev, referenceBlocks: rb }
+      persistPackingState(next)
+      return next
+    })
+  }
+
+  function handleRefUpdateNote(blockKey, note) {
+    setPackingListState((prev) => {
+      const cur = prev.referenceBlocks[blockKey]
+      const nextBlock = { ...cur, note: note.slice(0, 1000) }
+      const rb = { ...prev.referenceBlocks, [blockKey]: nextBlock }
+      const next = { ...prev, referenceBlocks: rb }
+      persistPackingState(next)
+      return next
+    })
+  }
+
+  function handleRefAddBullet(blockKey, text) {
+    const t = text.trim()
+    if (!t) return
+    setPackingListState((prev) => {
+      const cur = prev.referenceBlocks[blockKey]
+      const bullets = [...cur.bullets, { id: newRefBulletId(), text: t.slice(0, 1500) }]
+      const nextBlock = { ...cur, bullets }
+      const rb = { ...prev.referenceBlocks, [blockKey]: nextBlock }
+      const next = { ...prev, referenceBlocks: rb }
+      persistPackingState(next)
+      return next
+    })
+  }
+
+  function handleRefUpdateBullet(blockKey, bulletId, text) {
+    const t = text.trim()
+    if (!t) return
+    setPackingListState((prev) => {
+      const cur = prev.referenceBlocks[blockKey]
+      const bullets = cur.bullets.map((b) =>
+        b.id === bulletId ? { ...b, text: t.slice(0, 1500) } : b,
+      )
+      const nextBlock = { ...cur, bullets }
+      const rb = { ...prev.referenceBlocks, [blockKey]: nextBlock }
+      const next = { ...prev, referenceBlocks: rb }
+      persistPackingState(next)
+      return next
+    })
+  }
+
+  function handleRefDeleteBullet(blockKey, bulletId) {
+    setPackingListState((prev) => {
+      const cur = prev.referenceBlocks[blockKey]
+      const bullets = cur.bullets.filter((b) => b.id !== bulletId)
+      const nextBlock = { ...cur, bullets }
+      const rb = { ...prev.referenceBlocks, [blockKey]: nextBlock }
+      const next = { ...prev, referenceBlocks: rb }
+      persistPackingState(next)
+      return next
+    })
+  }
+
   const dayEntries = current?.day.id ? wallet.byDay[current.day.id] ?? [] : []
   const dayWalletTotal = current?.day.id ? sumDay(wallet, current.day.id) : 0
   const walletSummarySub = useMemo(() => {
@@ -422,7 +578,7 @@ export default function App() {
 
   const mapPlaces = items
     .filter((it) => it.type === 'activity' || it.type === 'stay')
-    .map((it) => ({ title: it.title, key: it.title }))
+    .map((it) => ({ title: it.title, key: it.title, href: mapHrefForTripItem(it) }))
 
   const dayImportantLinks = useMemo(() => {
     const out = []
@@ -470,10 +626,12 @@ export default function App() {
     <div className={`app ${showFab ? 'app--fab' : ''}`}>
       {isOffline ? (
         <p className="app-offline-banner" role="status">
-          離線中：已安裝並開啟過的頁面可繼續瀏覽本機行程、記帳與景點；地圖與外部網址需網路。
+          離線中：已安裝並開啟過的頁面可繼續瀏覽本機行程、記帳、景點與行李清單；地圖與外部網址需網路。
         </p>
       ) : null}
       <HeroHeader tripData={tripData} filter={filter} onResetTrip={handleResetTrip} onFilterChange={onFilterChange} />
+
+      <ShareSyncBar />
 
       <DateStrip
         stripRef={stripRef}
@@ -492,6 +650,7 @@ export default function App() {
         <HomePage
           cardRef={cardRef}
           current={current}
+          tripData={tripData}
           regionShort={regionShort}
           items={items}
           simplePreviewItems={simplePreviewItems}
@@ -514,6 +673,7 @@ export default function App() {
         <ItineraryPage
           cardRef={cardRef}
           current={current}
+          tripData={tripData}
           listItems={listItems}
           showAllItems={showAllItems}
           hiddenCount={hiddenCount}
@@ -561,6 +721,7 @@ export default function App() {
           walletPayerBreakdown={walletPayerBreakdown}
           setWallet={setWallet}
           setWalletNote={setWalletNote}
+          persistWallet={commitWallet}
         />
       )}
 
@@ -591,13 +752,32 @@ export default function App() {
         />
       )}
 
+      {tab === 'packing' && (
+        <PackingListPage
+          activeProfileId={packingListState.activeProfileId}
+          onSelectProfile={handlePackingSelectProfile}
+          checkedIds={packingListState.profiles[packingListState.activeProfileId].checked}
+          customsBySection={packingListState.profiles[packingListState.activeProfileId].customsBySection}
+          referenceBlocks={packingListState.referenceBlocks}
+          onRefUpdateTitle={handleRefUpdateTitle}
+          onRefUpdateNote={handleRefUpdateNote}
+          onRefAddBullet={handleRefAddBullet}
+          onRefUpdateBullet={handleRefUpdateBullet}
+          onRefDeleteBullet={handleRefDeleteBullet}
+          onToggle={handlePackingToggle}
+          onClearAll={handlePackingClearAll}
+          onAddCustom={handlePackingAddCustom}
+          onRemoveCustom={handlePackingRemoveCustom}
+        />
+      )}
+
       {installPrompt && (
         <button type="button" className="install-banner" onClick={handleInstallClick}>
           安裝到裝置（全螢幕、像 App）
         </button>
       )}
       <p className="fine-print">
-        行程請在該列點「編輯」修改文字與地圖連結；備用景點請在卡片點「編輯」修改名稱、地圖連結與備註。齒輪可重設預設。記帳／景點存在此瀏覽器。
+        行程請在該列點「編輯」修改文字與地圖連結；備用景點請在卡片點「編輯」修改名稱、地圖連結與備註。齒輪可重設預設。所有編輯內容皆寫入本機瀏覽器（localStorage），並以 Cookie 記錄最近儲存時間；換裝置不會自動同步。行李清單可依家庭成員（妹妹、姊姊、媽媽、爸爸）分開勾選與自訂項目；下方航空參考區的標題、說明與每則備註皆可新增、編輯、刪除。
         離線：請先以 HTTPS 部署或本機執行 npm run build 後 npm run preview，用瀏覽器完整開啟一次再關閉網路；已安裝為 App 者亦可離線開啟。
         PWA：Chrome／Edge「安裝應用程式」；iPhone Safari「加入主畫面」。
       </p>
@@ -620,7 +800,7 @@ export default function App() {
         </button>
       )}
 
-      <nav className="bottom-nav" aria-label="主選單">
+      <nav className="bottom-nav bottom-nav--six" aria-label="主選單">
         <button
           type="button"
           className={tab === 'itinerary' ? 'bottom-nav-item bottom-nav-item--active' : 'bottom-nav-item'}
@@ -662,6 +842,15 @@ export default function App() {
         >
           <IconNav name="sights" />
           <span>景點</span>
+        </button>
+        <button
+          type="button"
+          className={tab === 'packing' ? 'bottom-nav-item bottom-nav-item--active' : 'bottom-nav-item'}
+          onClick={() => setTab('packing')}
+          aria-label="行李清單"
+        >
+          <IconNav name="packing" />
+          <span className="bottom-nav-label--tight">行李清單</span>
         </button>
       </nav>
     </div>

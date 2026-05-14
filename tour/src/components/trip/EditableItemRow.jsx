@@ -1,7 +1,31 @@
 import { useState } from 'react'
-import { mapHrefForTripItem, mapUrlFromTripItem, normalizeUserMapUrl, splitTimeForCard } from '../../utils/tripFormat.js'
+import {
+  alignRegionTagToChip,
+  buildActivityTimeString,
+  mapHrefForTripItem,
+  mapUrlFromTripItem,
+  normalizeUserMapUrl,
+  parseActivityTimeParts,
+  splitTimeForCard,
+} from '../../utils/tripFormat.js'
 import { IconNavSend, IconPencilSmall, IconTrashSmall } from '../icons/Icons.jsx'
 import { LinkList } from './LinkList.jsx'
+
+const HOUR_OPTS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'))
+const MINUTE_OPTS = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'))
+
+/** 依下拉變更更新 draft.time（開始／結束各需時＋分；清除分則一併清除時） */
+function nextTimeFromParts(prevTime, updates) {
+  const p = parseActivityTimeParts(prevTime)
+  let next = { ...p, ...updates }
+  if (updates.sh === '') next = { ...next, sm: '' }
+  if (updates.eh === '') next = { ...next, em: '' }
+  if (updates.sm === '') next = { ...next, sh: '' }
+  if (updates.em === '') next = { ...next, eh: '' }
+  if (next.sh && next.sm === '') next = { ...next, sm: '00' }
+  if (next.eh && next.em === '') next = { ...next, em: '00' }
+  return buildActivityTimeString(next)
+}
 
 export function EditableItemRow({
   item,
@@ -10,6 +34,8 @@ export function EditableItemRow({
   onRemove,
   layout = 'row',
   regionLabel = '',
+  regionFallbackLabel = '',
+  regionTagOptions = [],
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState({
@@ -17,6 +43,7 @@ export function EditableItemRow({
     title: item.title,
     detail: item.detail ?? '',
     mapUrl: mapUrlFromTripItem(item),
+    regionTag: alignRegionTagToChip(item.regionTag, regionTagOptions),
   })
 
   function openEdit() {
@@ -25,6 +52,7 @@ export function EditableItemRow({
       title: item.title,
       detail: item.detail ?? '',
       mapUrl: mapUrlFromTripItem(item),
+      regionTag: alignRegionTagToChip(item.regionTag, regionTagOptions),
     })
     setEditing(true)
   }
@@ -83,10 +111,12 @@ export function EditableItemRow({
     const title = draft.title.trim() || item.title
     const detailTrim = draft.detail.trim()
     const mapTrim = draft.mapUrl.trim()
+    const tagTrim = draft.regionTag.trim()
     const patch = {
       title,
       detail: detailTrim ? detailTrim : undefined,
       mapUrl: mapTrim || '',
+      regionTag: tagTrim ? tagTrim : undefined,
     }
     if (item.type === 'activity') {
       const t = draft.time.trim()
@@ -102,25 +132,100 @@ export function EditableItemRow({
       title: item.title,
       detail: item.detail ?? '',
       mapUrl: mapUrlFromTripItem(item),
+      regionTag: alignRegionTagToChip(item.regionTag, regionTagOptions),
     })
     setEditing(false)
   }
 
   if (editing) {
+    const chips = regionTagOptions
+    const cur = String(draft.regionTag ?? '').trim()
+    const extras = cur && !chips.includes(cur) ? [cur] : []
     const outerClass = layout === 'card' ? cardClass : rowClass
+    const tp = parseActivityTimeParts(draft.time)
     return (
       <article className={outerClass}>
         <div className={layout === 'card' ? 'trip-edit-fields trip-edit-fields--card' : 'trip-edit-fields'}>
           {item.type === 'activity' && (
             <label className="trip-edit-label">
               <span>時間</span>
-              <input
-                className="trip-input"
-                value={draft.time}
-                onChange={(e) => setDraft((d) => ({ ...d, time: e.target.value }))}
-                placeholder="例：10:30 – 12:00"
-                autoComplete="off"
-              />
+              <div className="trip-time-range-editor">
+                <div className="trip-time-range-editor__block">
+                  <span className="trip-time-range-editor__sublabel">開始</span>
+                  <div className="trip-time-range-editor__selects">
+                    <select
+                      className="trip-input trip-input--select trip-time-range-editor__select"
+                      aria-label="開始（時）"
+                      value={tp.sh}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, time: nextTimeFromParts(d.time, { sh: e.target.value }) }))
+                      }
+                    >
+                      <option value="">時</option>
+                      {HOUR_OPTS.map((h) => (
+                        <option key={`sh-${h}`} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="trip-input trip-input--select trip-time-range-editor__select"
+                      aria-label="開始（分）"
+                      value={tp.sm}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, time: nextTimeFromParts(d.time, { sm: e.target.value }) }))
+                      }
+                      disabled={!tp.sh}
+                    >
+                      <option value="">分</option>
+                      {MINUTE_OPTS.map((m) => (
+                        <option key={`sm-${m}`} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <span className="trip-time-range-editor__sep" aria-hidden>
+                  –
+                </span>
+                <div className="trip-time-range-editor__block">
+                  <span className="trip-time-range-editor__sublabel">結束</span>
+                  <div className="trip-time-range-editor__selects">
+                    <select
+                      className="trip-input trip-input--select trip-time-range-editor__select"
+                      aria-label="結束（時）"
+                      value={tp.eh}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, time: nextTimeFromParts(d.time, { eh: e.target.value }) }))
+                      }
+                    >
+                      <option value="">時</option>
+                      {HOUR_OPTS.map((h) => (
+                        <option key={`eh-${h}`} value={h}>
+                          {h}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      className="trip-input trip-input--select trip-time-range-editor__select"
+                      aria-label="結束（分）"
+                      value={tp.em}
+                      onChange={(e) =>
+                        setDraft((d) => ({ ...d, time: nextTimeFromParts(d.time, { em: e.target.value }) }))
+                      }
+                      disabled={!tp.eh}
+                    >
+                      <option value="">分</option>
+                      {MINUTE_OPTS.map((m) => (
+                        <option key={`em-${m}`} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
             </label>
           )}
           <label className="trip-edit-label">
@@ -131,6 +236,28 @@ export function EditableItemRow({
               onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
               autoComplete="off"
             />
+          </label>
+          <label className="trip-edit-label">
+            <span>地區標籤</span>
+            <select
+              className="trip-input trip-input--select"
+              value={draft.regionTag}
+              onChange={(e) => setDraft((d) => ({ ...d, regionTag: e.target.value }))}
+            >
+              <option value="">
+                {regionFallbackLabel ? `沿用「${regionFallbackLabel}」` : '沿用行程地區'}
+              </option>
+              {chips.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+              {extras.map((opt) => (
+                <option key={`extra-${opt}`} value={opt}>
+                  {opt}（其他）
+                </option>
+              ))}
+            </select>
           </label>
           <label className="trip-edit-label">
             <span>地圖連結</span>

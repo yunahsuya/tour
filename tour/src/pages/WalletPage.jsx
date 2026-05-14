@@ -1,7 +1,6 @@
 import {
   DEFAULT_WALLET_ITEM_LABELS,
   removeWalletItemLabel,
-  saveWallet,
   sumAll,
 } from '../walletStorage.js'
 import { WALLET_PAYERS } from '../constants/appConstants.js'
@@ -48,6 +47,7 @@ export function WalletPage({
   walletPayerBreakdown,
   setWallet,
   setWalletNote,
+  persistWallet,
 }) {
   if (!current) {
     return <p className="panel-empty">目前沒有行程日可顯示。</p>
@@ -202,8 +202,7 @@ export function WalletPage({
                               )
                                 return
                               const next = removeWalletItemLabel(wallet, label)
-                              saveWallet(next)
-                              setWallet(next)
+                              persistWallet(next)
                               if (walletNote === label) setWalletNote('')
                             }}
                           >
