@@ -10,7 +10,7 @@
   --heading: 'Cormorant Garamond', 'Noto Serif TC', Georgia, serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  font: 16px/145% var(--sans);
+  font: 20px/152% var(--sans);
   letter-spacing: 0.02px;
   color: var(--text);
   background: var(--page-bg);

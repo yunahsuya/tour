@@ -1,0 +1,48 @@
+# 部署到 GitHub Pages：網址為 https://yunahsuya.github.io/tour/
+# 使用前請在 Repo → Settings → Pages → Build and deployment → Source 選「GitHub Actions」
+
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: tour/package-lock.json
+
+      - name: Install and build
+        working-directory: tour
+        run: |
+          npm ci
+          npm run build
+
+      - uses: actions/configure-pages@v4
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: tour/dist
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
