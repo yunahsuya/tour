@@ -1,0 +1,60 @@
+# 自動打包
+
+# Action 名稱 (Workflow 名稱)
+# name → 這個 Action（工作流程）的名稱，顯示在 GitHub Actions 頁面上。
+# 這裡叫 Deploy，表示這個流程是用來部署的
+name: Deploy
+# 觸發時機，當推送到 main 時
+# on → 指定「什麼時候要執行這個 workflow」。
+on:
+  # push → 當有人 push 代碼到遠端時觸發。
+  push:
+    # branches: [main] → 只在 main 分支推送時觸發。
+    # 意思就是：每次有人 push 到 main 分支，這個自動部署流程就會跑。
+    branches: [main]
+# 執行的工作
+# jobs → 定義一個或多個工作（job）。
+jobs:
+  # 工作名稱
+  # deploy → 這個工作的名稱。
+  deploy:
+    # 執行工作的虛擬機作業系統
+    # runs-on: ubuntu-latest → 這個工作在哪個虛擬環境跑，這裡選最新的 Ubuntu Linux。
+    runs-on: ubuntu-latest
+    # 工作步驟
+    steps:
+      # 步驟一：複製程式碼
+      # name → 這個步驟的名稱。
+      - name: checkout
+        # 使用的 actions/checkout 複製程式碼
+        # uses: actions/checkout@v3 → 使用 GitHub 官方提供的 action，複製 repository 的程式碼到虛擬機。
+        # 沒這步，後面就沒地方編譯程式碼
+        uses: actions/checkout@v3
+      # 步驟二：編譯 (安裝依賴，並編譯)
+      - name: Install and Build
+        # run → 要在虛擬機執行的 shell 指令。
+        # npm run build → 生成專案靜態檔案（通常輸出到 dist）
+        # npm install → 安裝專案依賴。
+        run: |
+          npm install
+          npm run build
+        # env → 設定環境變數。
+        env:
+          # VITE_API_URL: ${{ secrets.VITE_API_URL }} → 從 GitHub Secrets 取得敏感資料（API URL），避免硬寫在程式碼
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+      # 步驟三：部署 (部署到 GitHub Pages)
+      - name: Deploy
+        # uses: JamesIves/github-pages-deploy-action@v4 → 使用這個 Action 來部署靜態網站到 GitHub Pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        # with → 提供 Action 的參數：
+        with:
+          # branch: gh-pages → 部署到 gh-pages 分支。
+          branch: gh-pages
+          # folder: dist → 要部署的資料夾，通常是 Vue、React build 出來的 dist
+          folder: dist
+
+# 流程總結
+# 有人 push 到 main → workflow 觸發。
+# 複製程式碼 → 把 repo 內容帶到虛擬機。
+# 安裝依賴 & 編譯 → 生成可部署的靜態檔案。
+# 部署 → 將 dist 上傳到 gh-pages 分支，GitHub Pages 會自動發佈。
