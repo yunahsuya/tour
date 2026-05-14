@@ -1,6 +1,11 @@
-# 倉庫根目錄在「外層」，Vite 專案在子資料夾 tour/ — GitHub 只會讀這裡的 workflows
+# 倉庫根目錄在「外層」，Vite 專案在子資料夾 tour/
 # 網址：https://yunahsuya.github.io/tour/
-# Settings → Pages → Build and deployment → Source 請選「GitHub Actions」
+# Settings → Pages → Source 請選「GitHub Actions」
+#
+# 若 Actions 全綠但網址仍 404：到 Code → .github/workflows/ 檢查是否還有
+# 「static-pages-deploy」「pages-build-deployment」等「另一套」Pages 流程。
+# 多個流程都會 deploy 到同一個 github-pages 環境時，「最後跑完的那個」會蓋掉網站；
+# 若那是空專案或靜態範本，就會變成 404。請只保留這一個 workflow，其餘刪除或停用。
 
 name: Deploy GitHub Pages
 
@@ -15,8 +20,8 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: tour-vite-pages
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -33,9 +38,13 @@ jobs:
       - name: Install and build
         working-directory: tour
         run: |
-          # 避免 lock 在 Windows 產生時與 Linux optional 套件不一致導致 npm ci 失敗
           npm install --no-audit --no-fund
           npm run build
+
+      - name: Verify dist has index.html
+        run: |
+          ls -la tour/dist
+          test -f tour/dist/index.html
 
       - uses: actions/configure-pages@v4
 
@@ -49,6 +58,9 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
