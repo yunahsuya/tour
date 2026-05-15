@@ -40,6 +40,7 @@ import { SpotsPage } from "./pages/SpotsPage.jsx";
 import { PackingListPage } from "./pages/PackingListPage.jsx";
 import { WalletPage } from "./pages/WalletPage.jsx";
 import { useFirebaseTourSync } from "./firebase/useFirebaseTourSync.js";
+import { loadInitialTourBundle } from "./firebase/tourCodeCache.js";
 import { PACKING_PROFILES } from "./constants/packingProfiles.js";
 import {
   loadPackingState,
@@ -49,16 +50,18 @@ import {
 } from "./packingListStorage.js";
 import "./App.css";
 
+const initialTourBundle = loadInitialTourBundle();
+
 export default function App() {
-  const [tripData, setTripData] = useState(() => loadTripData());
+  const [tripData, setTripData] = useState(() => initialTourBundle.tripData);
   const [tab, setTab] = useState("home");
   const [filter, setFilter] = useState("all");
   const [dayIndex, setDayIndex] = useState(0);
   const [showAllItems, setShowAllItems] = useState(false);
   const [simpleListExpanded, setSimpleListExpanded] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
-  const [wallet, setWallet] = useState(() => loadWallet());
-  const [spots, setSpots] = useState(() => loadSpots());
+  const [wallet, setWallet] = useState(() => initialTourBundle.wallet);
+  const [spots, setSpots] = useState(() => initialTourBundle.spots);
   const [walletMode, setWalletMode] = useState("daily");
   const [walletPayerTab, setWalletPayerTab] = useState(WALLET_PAYERS[0]);
   const [walletNote, setWalletNote] = useState("");
@@ -79,8 +82,8 @@ export default function App() {
   const [editSpotTitle, setEditSpotTitle] = useState("");
   const [editSpotNote, setEditSpotNote] = useState("");
   const [editSpotMapUrl, setEditSpotMapUrl] = useState("");
-  const [packingListState, setPackingListState] = useState(() =>
-    loadPackingState(),
+  const [packingListState, setPackingListState] = useState(
+    () => initialTourBundle.packing,
   );
   const stripRef = useRef(null);
   const cardRef = useRef(null);

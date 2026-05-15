@@ -21,6 +21,14 @@ import {
   normalizeShareCode,
 } from './shareCodeUtils.js'
 import { describeFirebaseSyncError } from './firebaseErrors.js'
+import {
+  getCodeLocalWriteTs,
+  isCodeSyncSeeded,
+  loadCodeSnapshot,
+  markCodeSyncSeeded,
+  saveCodeSnapshot,
+  setCodeLocalWriteTs,
+} from './tourCodeCache.js'
 
 const COLLECTION = 'sharedTours'
 const SYNC_DEBOUNCE_MS = 1400
@@ -106,6 +114,9 @@ export function useFirebaseTourSync({
   const applyingRemote = useRef(false)
   const pushTimer = useRef(null)
   const dbRef = useRef(null)
+  const prevShareCodeRef = useRef(null)
+  /** 切換代碼後須完成 pull，避免把上一個代碼的資料推到新代碼 */
+  const pullReadyForCodeRef = useRef('')
 
   const setShareCode = useCallback((code) => {
     const normalized = normalizeShareCode(code)
@@ -132,8 +143,15 @@ export function useFirebaseTourSync({
           wallet: wl,
           spots: st,
           packing: pkUse,
+          shareCode: shareCodeRef.current,
         })
         lastPushedJson.current = stableSnapshot(td, wl, st, pkUse)
+        saveCodeSnapshot(shareCodeRef.current, {
+          tripData: td,
+          wallet: wl,
+          spots: st,
+          packing: pkUse,
+        })
       } finally {
         queueMicrotask(() => {
           applyingRemote.current = false
@@ -162,8 +180,15 @@ export function useFirebaseTourSync({
       { merge: true },
     )
     lastPushedJson.current = stableSnapshot(t, w, s, p)
-    localStorage.setItem('tour-local-write-ts', String(Date.now()))
-    mirrorTourDataToBrowserCaches({ tripData: t, wallet: w, spots: s, packing: p })
+    setCodeLocalWriteTs(code, Date.now())
+    mirrorTourDataToBrowserCaches({
+      tripData: t,
+      wallet: w,
+      spots: s,
+      packing: p,
+      shareCode: code,
+    })
+    saveCodeSnapshot(code, { tripData: t, wallet: w, spots: s, packing: p })
   }, [])
 
   const pullRemote = useCallback(
@@ -173,13 +198,14 @@ export function useFirebaseTourSync({
       const snap = await getDoc(doc(db, COLLECTION, code))
       if (!snap.exists()) {
         await pushRemote(code)
-        localStorage.setItem('tour-sync-seeded', '1')
+        markCodeSyncSeeded(code)
+        pullReadyForCodeRef.current = code
         return
       }
       const d = snap.data()
       const remoteMs =
         d.updatedAt instanceof Timestamp ? d.updatedAt.toMillis() : 0
-      const localMs = Number(localStorage.getItem('tour-local-write-ts') || 0)
+      const localMs = getCodeLocalWriteTs(code)
       const hasCloudPayload = Boolean(
         (Array.isArray(d.trip) && d.trip.length > 0) ||
           (d.wallet && typeof d.wallet === 'object') ||
@@ -191,14 +217,63 @@ export function useFirebaseTourSync({
 
       if (shouldApply) {
         applyRemoteDoc(d)
-        localStorage.setItem('tour-local-write-ts', String(remoteMs || Date.now()))
-        localStorage.setItem('tour-sync-seeded', '1')
-      } else if (!localStorage.getItem('tour-sync-seeded')) {
-        localStorage.setItem('tour-sync-seeded', '1')
+        setCodeLocalWriteTs(code, remoteMs || Date.now())
+        markCodeSyncSeeded(code)
+      } else if (!isCodeSyncSeeded(code)) {
+        markCodeSyncSeeded(code)
       }
+      pullReadyForCodeRef.current = code
     },
     [applyRemoteDoc, pushRemote],
   )
+
+  /** 切換／離開行程代碼時：先存舊代碼快照，再載入新代碼本機快照 */
+  useEffect(() => {
+    const prev = prevShareCodeRef.current
+    const next = normalizeShareCode(shareCode)
+
+    if (prev === next) return
+
+    prevShareCodeRef.current = next
+    pullReadyForCodeRef.current = ''
+    lastPushedJson.current = ''
+
+    if (prev !== null) {
+      saveCodeSnapshot(prev, {
+        tripData: tripRef.current,
+        wallet: walletRef.current,
+        spots: spotsRef.current,
+        packing: packingRef.current,
+      })
+    }
+
+    const snap = next && isValidShareCode(next) ? loadCodeSnapshot(next) : loadCodeSnapshot('')
+    if (!snap) return
+
+    applyingRemote.current = true
+    try {
+      if (snap.tripData) setTripData(snap.tripData)
+      if (snap.wallet) setWallet(snap.wallet)
+      if (snap.spots) setSpots(snap.spots)
+      if (snap.packing) setPackingListState(snap.packing)
+      const td = snap.tripData ?? tripRef.current
+      const wl = snap.wallet ?? walletRef.current
+      const st = snap.spots ?? spotsRef.current
+      const pk = snap.packing ?? packingRef.current
+      mirrorTourDataToBrowserCaches({
+        tripData: td,
+        wallet: wl,
+        spots: st,
+        packing: pk,
+        shareCode: next,
+      })
+      lastPushedJson.current = stableSnapshot(td, wl, st, pk)
+    } finally {
+      queueMicrotask(() => {
+        applyingRemote.current = false
+      })
+    }
+  }, [shareCode, setTripData, setWallet, setSpots, setPackingListState])
 
   useEffect(() => {
     if (!isFirebaseConfigured()) return undefined
@@ -259,6 +334,7 @@ export function useFirebaseTourSync({
     const code = normalizeShareCode(shareCode)
     if (!code || !isValidShareCode(code)) return undefined
     if (applyingRemote.current) return undefined
+    if (pullReadyForCodeRef.current !== code) return undefined
 
     const snap = stableSnapshot(tripData, wallet, spots, packingListState)
     if (snap === lastPushedJson.current) return undefined
@@ -268,6 +344,7 @@ export function useFirebaseTourSync({
       if (applyingRemote.current) return
       const activeCode = normalizeShareCode(shareCodeRef.current)
       if (!isValidShareCode(activeCode)) return
+      if (pullReadyForCodeRef.current !== activeCode) return
       pushRemote(activeCode).catch((e) => {
         console.warn('[tour] 寫入 Firestore 失敗', e)
         setSyncError(`${describeFirebaseSyncError(e)}（本機已保留）`)
@@ -302,11 +379,57 @@ export function useFirebaseTourSync({
   )
 
   const leaveShareCode = useCallback(() => {
+    const leaving = normalizeShareCode(shareCodeRef.current)
+    if (leaving) {
+      saveCodeSnapshot(leaving, {
+        tripData: tripRef.current,
+        wallet: walletRef.current,
+        spots: spotsRef.current,
+        packing: packingRef.current,
+      })
+    }
     clearShareCode()
     setShareCodeState('')
     setSyncError(null)
     lastPushedJson.current = ''
-  }, [])
+    pullReadyForCodeRef.current = ''
+    prevShareCodeRef.current = ''
+
+    const localSnap = loadCodeSnapshot('')
+    if (!localSnap) return
+    applyingRemote.current = true
+    try {
+      if (localSnap.tripData) setTripData(localSnap.tripData)
+      if (localSnap.wallet) setWallet(localSnap.wallet)
+      if (localSnap.spots) setSpots(localSnap.spots)
+      if (localSnap.packing) setPackingListState(localSnap.packing)
+      mirrorTourDataToBrowserCaches({
+        tripData: localSnap.tripData ?? tripRef.current,
+        wallet: localSnap.wallet ?? walletRef.current,
+        spots: localSnap.spots ?? spotsRef.current,
+        packing: localSnap.packing ?? packingRef.current,
+        shareCode: '',
+      })
+    } finally {
+      queueMicrotask(() => {
+        applyingRemote.current = false
+      })
+    }
+  }, [setTripData, setWallet, setSpots, setPackingListState])
+
+  useEffect(() => {
+    const code = normalizeShareCode(shareCode)
+    const target = code && isValidShareCode(code) ? code : ''
+    const timer = setTimeout(() => {
+      saveCodeSnapshot(target, {
+        tripData: tripRef.current,
+        wallet: walletRef.current,
+        spots: spotsRef.current,
+        packing: packingRef.current,
+      })
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [shareCode, tripData, wallet, spots, packingListState])
 
   return {
     shareCode,
