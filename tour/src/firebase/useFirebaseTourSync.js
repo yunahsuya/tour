@@ -12,8 +12,10 @@ import {
 import { getFirebaseConfig, isFirebaseConfigured } from './config.js'
 import { mirrorTourDataToBrowserCaches } from './cacheMirror.js'
 import { prepareTripData } from '../tripStorage.js'
+import { remapWalletDayIds } from '../walletStorage.js'
 import { normalizeWallet } from '../walletStorage.js'
 import { packingStateFromJson, packingStateToJson } from '../packingListStorage.js'
+import { normalizeDriveLinks } from '../driveLinksStorage.js'
 import { clearShareCode, loadShareCode, saveShareCode } from './shareCodeStorage.js'
 import {
   generateShareCode,
@@ -34,8 +36,14 @@ const COLLECTION = 'sharedTours'
 const SYNC_DEBOUNCE_MS = 1400
 const PULL_INTERVAL_MS = 90_000
 
-function stableSnapshot(tripData, wallet, spots, packing) {
-  return JSON.stringify({ tripData, wallet, spots, packing: packingStateToJson(packing) })
+function stableSnapshot(tripData, wallet, spots, packing, driveLinks) {
+  return JSON.stringify({
+    tripData,
+    wallet,
+    spots,
+    packing: packingStateToJson(packing),
+    driveLinks,
+  })
 }
 
 function parseFirestorePayload(data) {
@@ -47,7 +55,11 @@ function parseFirestorePayload(data) {
     spots = { spots: data.spots.spots }
   }
   const packing = data.packing ? packingStateFromJson(data.packing) : null
-  return { trip, wallet, spots, packing }
+  let driveLinks = null
+  if (data.driveLinks && typeof data.driveLinks === 'object') {
+    driveLinks = normalizeDriveLinks(data.driveLinks)
+  }
+  return { trip, wallet, spots, packing, driveLinks }
 }
 
 function readCodeFromUrl() {
@@ -83,22 +95,26 @@ export function useFirebaseTourSync({
   wallet,
   spots,
   packingListState,
+  customDriveLinks,
   setTripData,
   setWallet,
   setSpots,
   setPackingListState,
+  setCustomDriveLinks,
 }) {
   const tripRef = useRef(tripData)
   const walletRef = useRef(wallet)
   const spotsRef = useRef(spots)
   const packingRef = useRef(packingListState)
+  const driveLinksRef = useRef(customDriveLinks)
 
   useLayoutEffect(() => {
     tripRef.current = tripData
     walletRef.current = wallet
     spotsRef.current = spots
     packingRef.current = packingListState
-  }, [tripData, wallet, spots, packingListState])
+    driveLinksRef.current = customDriveLinks
+  }, [tripData, wallet, spots, packingListState, customDriveLinks])
 
   const [shareCode, setShareCodeState] = useState(initialShareCode)
   const [syncReady, setSyncReady] = useState(false)
@@ -127,15 +143,24 @@ export function useFirebaseTourSync({
 
   const applyRemoteDoc = useCallback(
     (data) => {
-      const { trip, wallet: w, spots: sp, packing: pk } = parseFirestorePayload(data)
+      const { trip, wallet: w, spots: sp, packing: pk, driveLinks: dl } =
+        parseFirestorePayload(data)
       applyingRemote.current = true
       try {
-        if (trip && trip.length > 0) setTripData(prepareTripData(trip))
-        if (w) setWallet(w)
+        let dayIdRemap = new Map()
+        let td = tripRef.current
+        if (trip && trip.length > 0) {
+          const prepared = prepareTripData(trip)
+          td = prepared.trip
+          dayIdRemap = prepared.dayIdRemap
+          setTripData(td)
+        }
+        const wl = remapWalletDayIds(w ?? walletRef.current, dayIdRemap)
+        if (w || dayIdRemap.size) setWallet(wl)
         if (sp) setSpots(sp)
         if (pk) setPackingListState(pk)
-        const td = trip && trip.length > 0 ? prepareTripData(trip) : tripRef.current
-        const wl = w ?? walletRef.current
+        const dlUse = dl ?? driveLinksRef.current
+        if (dl) setCustomDriveLinks(dlUse)
         const st = sp ?? spotsRef.current
         const pkUse = pk ?? packingRef.current
         mirrorTourDataToBrowserCaches({
@@ -143,14 +168,16 @@ export function useFirebaseTourSync({
           wallet: wl,
           spots: st,
           packing: pkUse,
+          driveLinks: dlUse,
           shareCode: shareCodeRef.current,
         })
-        lastPushedJson.current = stableSnapshot(td, wl, st, pkUse)
+        lastPushedJson.current = stableSnapshot(td, wl, st, pkUse, dlUse)
         saveCodeSnapshot(shareCodeRef.current, {
           tripData: td,
           wallet: wl,
           spots: st,
           packing: pkUse,
+          driveLinks: dlUse,
         })
       } finally {
         queueMicrotask(() => {
@@ -158,7 +185,7 @@ export function useFirebaseTourSync({
         })
       }
     },
-    [setTripData, setWallet, setSpots, setPackingListState],
+    [setTripData, setWallet, setSpots, setPackingListState, setCustomDriveLinks],
   )
 
   const pushRemote = useCallback(async (code) => {
@@ -168,6 +195,7 @@ export function useFirebaseTourSync({
     const w = walletRef.current
     const s = spotsRef.current
     const p = packingRef.current
+    const dl = driveLinksRef.current
     await setDoc(
       doc(db, COLLECTION, code),
       {
@@ -175,20 +203,22 @@ export function useFirebaseTourSync({
         wallet: w,
         spots: s,
         packing: packingStateToJson(p),
+        driveLinks: dl,
         updatedAt: serverTimestamp(),
       },
       { merge: true },
     )
-    lastPushedJson.current = stableSnapshot(t, w, s, p)
+    lastPushedJson.current = stableSnapshot(t, w, s, p, dl)
     setCodeLocalWriteTs(code, Date.now())
     mirrorTourDataToBrowserCaches({
       tripData: t,
       wallet: w,
       spots: s,
       packing: p,
+      driveLinks: dl,
       shareCode: code,
     })
-    saveCodeSnapshot(code, { tripData: t, wallet: w, spots: s, packing: p })
+    saveCodeSnapshot(code, { tripData: t, wallet: w, spots: s, packing: p, driveLinks: dl })
   }, [])
 
   const pullRemote = useCallback(
@@ -209,7 +239,8 @@ export function useFirebaseTourSync({
       const hasCloudPayload = Boolean(
         (Array.isArray(d.trip) && d.trip.length > 0) ||
           (d.wallet && typeof d.wallet === 'object') ||
-          d.packing,
+          d.packing ||
+          d.driveLinks,
       )
       const shouldApply =
         remoteMs > localMs ||
@@ -244,6 +275,7 @@ export function useFirebaseTourSync({
         wallet: walletRef.current,
         spots: spotsRef.current,
         packing: packingRef.current,
+        driveLinks: driveLinksRef.current,
       })
     }
 
@@ -256,24 +288,27 @@ export function useFirebaseTourSync({
       if (snap.wallet) setWallet(snap.wallet)
       if (snap.spots) setSpots(snap.spots)
       if (snap.packing) setPackingListState(snap.packing)
+      if (snap.driveLinks) setCustomDriveLinks(snap.driveLinks)
       const td = snap.tripData ?? tripRef.current
       const wl = snap.wallet ?? walletRef.current
       const st = snap.spots ?? spotsRef.current
       const pk = snap.packing ?? packingRef.current
+      const dl = snap.driveLinks ?? driveLinksRef.current
       mirrorTourDataToBrowserCaches({
         tripData: td,
         wallet: wl,
         spots: st,
         packing: pk,
+        driveLinks: dl,
         shareCode: next,
       })
-      lastPushedJson.current = stableSnapshot(td, wl, st, pk)
+      lastPushedJson.current = stableSnapshot(td, wl, st, pk, dl)
     } finally {
       queueMicrotask(() => {
         applyingRemote.current = false
       })
     }
-  }, [shareCode, setTripData, setWallet, setSpots, setPackingListState])
+  }, [shareCode, setTripData, setWallet, setSpots, setPackingListState, setCustomDriveLinks])
 
   useEffect(() => {
     if (!isFirebaseConfigured()) return undefined
@@ -336,7 +371,7 @@ export function useFirebaseTourSync({
     if (applyingRemote.current) return undefined
     if (pullReadyForCodeRef.current !== code) return undefined
 
-    const snap = stableSnapshot(tripData, wallet, spots, packingListState)
+    const snap = stableSnapshot(tripData, wallet, spots, packingListState, customDriveLinks)
     if (snap === lastPushedJson.current) return undefined
 
     if (pushTimer.current) clearTimeout(pushTimer.current)
@@ -354,7 +389,7 @@ export function useFirebaseTourSync({
     return () => {
       if (pushTimer.current) clearTimeout(pushTimer.current)
     }
-  }, [shareCode, syncReady, tripData, wallet, spots, packingListState, pushRemote])
+  }, [shareCode, syncReady, tripData, wallet, spots, packingListState, customDriveLinks, pushRemote])
 
   const createShareCode = useCallback(() => {
     let code = generateShareCode()
@@ -386,6 +421,7 @@ export function useFirebaseTourSync({
         wallet: walletRef.current,
         spots: spotsRef.current,
         packing: packingRef.current,
+        driveLinks: driveLinksRef.current,
       })
     }
     clearShareCode()
@@ -403,11 +439,13 @@ export function useFirebaseTourSync({
       if (localSnap.wallet) setWallet(localSnap.wallet)
       if (localSnap.spots) setSpots(localSnap.spots)
       if (localSnap.packing) setPackingListState(localSnap.packing)
+      if (localSnap.driveLinks) setCustomDriveLinks(localSnap.driveLinks)
       mirrorTourDataToBrowserCaches({
         tripData: localSnap.tripData ?? tripRef.current,
         wallet: localSnap.wallet ?? walletRef.current,
         spots: localSnap.spots ?? spotsRef.current,
         packing: localSnap.packing ?? packingRef.current,
+        driveLinks: localSnap.driveLinks ?? driveLinksRef.current,
         shareCode: '',
       })
     } finally {
@@ -415,7 +453,7 @@ export function useFirebaseTourSync({
         applyingRemote.current = false
       })
     }
-  }, [setTripData, setWallet, setSpots, setPackingListState])
+  }, [setTripData, setWallet, setSpots, setPackingListState, setCustomDriveLinks])
 
   useEffect(() => {
     const code = normalizeShareCode(shareCode)
@@ -426,10 +464,11 @@ export function useFirebaseTourSync({
         wallet: walletRef.current,
         spots: spotsRef.current,
         packing: packingRef.current,
+        driveLinks: driveLinksRef.current,
       })
     }, 500)
     return () => clearTimeout(timer)
-  }, [shareCode, tripData, wallet, spots, packingListState])
+  }, [shareCode, tripData, wallet, spots, packingListState, customDriveLinks])
 
   return {
     shareCode,

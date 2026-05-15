@@ -5,6 +5,8 @@ export function DateStrip({
   visiblePairs,
   safeIndex,
   totalDays,
+  stripTotal,
+  isAllDaysView,
   progressPct,
   onSelectDay,
   goPrev,
@@ -13,18 +15,34 @@ export function DateStrip({
   return (
     <div className="date-strip-wrap">
       <div className="date-strip" ref={stripRef} role="tablist" aria-label="選擇日期">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={isAllDaysView}
+          data-day-idx={0}
+          className={isAllDaysView ? 'date-card date-card--active date-card--all' : 'date-card date-card--all'}
+          onClick={() => onSelectDay(0)}
+        >
+          <span className="date-card-w">ALL</span>
+          <span className="date-card-d" aria-hidden>
+            &nbsp;
+          </span>
+          <span className="date-card-n date-card-n--all">全部</span>
+          <span className="date-card-m">{totalDays} 天</span>
+        </button>
         {visiblePairs.map((pair, idx) => {
           const meta = parseDayLabel(pair.day.label)
-          const active = idx === safeIndex
+          const stripIdx = idx + 1
+          const active = stripIdx === safeIndex
           return (
             <button
               key={pair.day.id}
               type="button"
               role="tab"
               aria-selected={active}
-              data-day-idx={idx}
+              data-day-idx={stripIdx}
               className={active ? 'date-card date-card--active' : 'date-card'}
-              onClick={() => onSelectDay(idx)}
+              onClick={() => onSelectDay(stripIdx)}
             >
               <span className="date-card-w">{meta.weekShort}</span>
               <span className="date-card-d">D{idx + 1}</span>
@@ -46,13 +64,13 @@ export function DateStrip({
           type="button"
           className="day-progress-btn"
           onClick={goNext}
-          disabled={safeIndex >= totalDays - 1}
+          disabled={safeIndex >= stripTotal - 1}
         >
           ›
         </button>
       </div>
       <p className="day-progress-label">
-        Day {safeIndex + 1} / {totalDays}
+        {isAllDaysView ? `全部 · ${totalDays} 天` : `Day ${safeIndex} / ${totalDays}`}
       </p>
     </div>
   )

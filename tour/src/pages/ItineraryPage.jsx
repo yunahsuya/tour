@@ -4,7 +4,10 @@ export function ItineraryPage({
   cardRef,
   current,
   tripData,
-  listItems,
+  listEntries,
+  isAllDaysView,
+  totalDays,
+  itineraryEntryCount,
   showAllItems,
   hiddenCount,
   onToggleShowAllItems,
@@ -19,7 +22,10 @@ export function ItineraryPage({
       cardRef={cardRef}
       current={current}
       tripData={tripData}
-      listItems={listItems}
+      listEntries={listEntries}
+      isAllDaysView={isAllDaysView}
+      totalDays={totalDays}
+      itineraryEntryCount={itineraryEntryCount}
       showAllItems={showAllItems}
       hiddenCount={hiddenCount}
       onToggleShowAll={onToggleShowAllItems}

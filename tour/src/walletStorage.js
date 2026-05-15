@@ -5,6 +5,21 @@ const KEY = 'tour-wallet-v1'
 /** 內建項目選項（順序固定在最前） */
 export const DEFAULT_WALLET_ITEM_LABELS = ['早餐', '午餐', '晚餐']
 
+/** 行程合併重複日期後，將記帳項目改掛到保留的 dayId */
+export function remapWalletDayIds(data, dayIdRemap) {
+  if (!dayIdRemap?.size) return normalizeWallet(data)
+  const w = normalizeWallet(data)
+  const nextByDay = { ...w.byDay }
+  for (const [from, to] of dayIdRemap) {
+    if (from === to) continue
+    const list = nextByDay[from]
+    if (!list?.length) continue
+    nextByDay[to] = [...(nextByDay[to] ?? []), ...list]
+    delete nextByDay[from]
+  }
+  return { ...w, byDay: nextByDay }
+}
+
 export function normalizeWallet(data) {
   const byDay = data?.byDay && typeof data.byDay === 'object' ? { ...data.byDay } : {}
   const seen = new Set()

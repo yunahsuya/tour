@@ -27,6 +27,7 @@ import {
   updateDayInTrip,
   updateItemInTrip,
 } from "./tripEdit.js";
+import { stripIndexForToday } from "./dayPickerMeta.js";
 import { mapHrefForTripItem } from "./utils/tripFormat.js";
 import { DateStrip } from "./components/layout/DateStrip.jsx";
 import { HeroHeader } from "./components/layout/HeroHeader.jsx";
@@ -49,6 +50,13 @@ import {
   newRefBulletId,
   persistPackingState,
 } from "./packingListStorage.js";
+import {
+  addCustomDriveLink,
+  loadCustomDriveLinks,
+  removeCustomDriveLink,
+  saveCustomDriveLinks,
+  updateCustomDriveLink,
+} from "./driveLinksStorage.js";
 import "./App.css";
 
 const initialTourBundle = loadInitialTourBundle();
@@ -57,7 +65,9 @@ export default function App() {
   const [tripData, setTripData] = useState(() => initialTourBundle.tripData);
   const [tab, setTab] = useState("home");
   const [filter, setFilter] = useState("all");
-  const [dayIndex, setDayIndex] = useState(0);
+  const [dayIndex, setDayIndex] = useState(() =>
+    stripIndexForToday(flattenDays(initialTourBundle.tripData)),
+  );
   const [showAllItems, setShowAllItems] = useState(false);
   const [simpleListExpanded, setSimpleListExpanded] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
@@ -86,6 +96,9 @@ export default function App() {
   const [packingListState, setPackingListState] = useState(
     () => initialTourBundle.packing,
   );
+  const [customDriveLinks, setCustomDriveLinks] = useState(
+    () => initialTourBundle.driveLinks ?? loadCustomDriveLinks(),
+  );
   const stripRef = useRef(null);
   const cardRef = useRef(null);
   const [isOffline, setIsOffline] = useState(
@@ -97,10 +110,12 @@ export default function App() {
     wallet,
     spots,
     packingListState,
+    customDriveLinks,
     setTripData,
     setWallet,
     setSpots,
     setPackingListState,
+    setCustomDriveLinks,
   });
 
   useEffect(() => {
@@ -151,12 +166,35 @@ export default function App() {
   }, [allPairs, filter]);
 
   const totalDays = visiblePairs.length;
-  const safeIndex = Math.min(dayIndex, Math.max(0, totalDays - 1));
-  const current = visiblePairs[safeIndex];
-  const items = current?.day.items ?? EMPTY_ITEMS;
+  const stripTotal = totalDays + 1;
+  const safeIndex = Math.min(dayIndex, Math.max(0, stripTotal - 1));
+  const isAllDaysView = safeIndex === 0;
+  const current = isAllDaysView ? null : visiblePairs[safeIndex - 1];
+
+  const itineraryEntries = useMemo(() => {
+    if (isAllDaysView) {
+      return visiblePairs.flatMap(({ region, day }) =>
+        day.items.map((item, itemIndex) => ({ item, region, day, itemIndex })),
+      );
+    }
+    if (!current) return [];
+    return current.day.items.map((item, itemIndex) => ({
+      item,
+      region: current.region,
+      day: current.day,
+      itemIndex,
+    }));
+  }, [isAllDaysView, visiblePairs, current]);
+
+  const items = useMemo(
+    () => itineraryEntries.map((e) => e.item),
+    [itineraryEntries],
+  );
   const previewCount = 5;
-  const hiddenCount = Math.max(0, items.length - previewCount);
-  const listItems = showAllItems ? items : items.slice(0, previewCount);
+  const hiddenCount = Math.max(0, itineraryEntries.length - previewCount);
+  const listEntries = showAllItems
+    ? itineraryEntries
+    : itineraryEntries.slice(0, previewCount);
 
   const SIMPLE_PREVIEW_MAX = 4;
   const simplePreviewItems = simpleListExpanded
@@ -164,6 +202,7 @@ export default function App() {
     : items.slice(0, SIMPLE_PREVIEW_MAX);
   const simpleHiddenCount = Math.max(0, items.length - SIMPLE_PREVIEW_MAX);
   const regionShort = current?.region.name.split("（")[0]?.trim() ?? "";
+  const mapCurrent = isAllDaysView ? (visiblePairs[0] ?? null) : current;
 
   useEffect(() => {
     const el = stripRef.current?.querySelector(`[data-day-idx="${safeIndex}"]`);
@@ -172,10 +211,10 @@ export default function App() {
       inline: "center",
       block: "nearest",
     });
-  }, [safeIndex, filter, totalDays]);
+  }, [safeIndex, filter, stripTotal]);
 
   const progressPct =
-    totalDays <= 1 ? 100 : (safeIndex / (totalDays - 1)) * 100;
+    stripTotal <= 1 ? 100 : (safeIndex / (stripTotal - 1)) * 100;
 
   function goPrev() {
     setShowAllItems(false);
@@ -190,7 +229,7 @@ export default function App() {
     setSimpleListExpanded(false);
     setFxConvForeign("");
     setFxConvTwd("");
-    setDayIndex((i) => Math.min(totalDays - 1, i + 1));
+    setDayIndex((i) => Math.min(stripTotal - 1, i + 1));
   }
 
   async function handleInstallClick() {
@@ -210,13 +249,13 @@ export default function App() {
     setWallet(n);
   }
 
-  function handleUpdateItem(itemIndex, patch) {
-    if (!current) return;
+  function handleUpdateItem(entry, patch) {
+    if (!entry?.day) return;
     const next = updateItemInTrip(
       tripData,
-      current.region.id,
-      current.day.id,
-      itemIndex,
+      entry.region.id,
+      entry.day.id,
+      entry.itemIndex,
       patch,
     );
     persist(next);
@@ -233,16 +272,15 @@ export default function App() {
     persist(next);
   }
 
-  function handleRemoveItem(itemIndex) {
-    if (!current) return false;
-    const it = items[itemIndex];
-    const label = it?.title ?? "此項目";
+  function handleRemoveItem(entry) {
+    if (!entry?.day) return false;
+    const label = entry.item?.title ?? "此項目";
     if (!window.confirm(`要刪除「${label}」嗎？此動作無法復原。`)) return false;
     const next = removeItemFromTrip(
       tripData,
-      current.region.id,
-      current.day.id,
-      itemIndex,
+      entry.region.id,
+      entry.day.id,
+      entry.itemIndex,
     );
     persist(next);
     return true;
@@ -252,7 +290,7 @@ export default function App() {
     if (!window.confirm("重設為預設行程？此裝置上已編輯的內容會清除。")) return;
     clearTripStorage();
     setTripData(loadTripData());
-    setDayIndex(0);
+    setDayIndex(stripIndexForToday(flattenDays(loadTripData())));
     setShowAllItems(false);
     setSimpleListExpanded(false);
     setFxConvForeign("");
@@ -650,6 +688,25 @@ export default function App() {
     });
   }
 
+  function commitDriveLinks(next) {
+    saveCustomDriveLinks(next);
+    setCustomDriveLinks(next);
+  }
+
+  function handleAddDriveLink(payload) {
+    const next = addCustomDriveLink(customDriveLinks, payload);
+    if (next.links.length === customDriveLinks.links.length) return;
+    commitDriveLinks(next);
+  }
+
+  function handleUpdateDriveLink(id, patch) {
+    commitDriveLinks(updateCustomDriveLink(customDriveLinks, id, patch));
+  }
+
+  function handleRemoveDriveLink(id) {
+    commitDriveLinks(removeCustomDriveLink(customDriveLinks, id));
+  }
+
   const dayEntries = current?.day.id
     ? (wallet.byDay[current.day.id] ?? [])
     : [];
@@ -718,13 +775,19 @@ export default function App() {
     [walletPayerEntries],
   );
 
-  const mapPlaces = items
-    .filter((it) => it.type === "activity" || it.type === "stay")
-    .map((it) => ({
-      title: it.title,
-      key: it.title,
-      href: mapHrefForTripItem(it),
-    }));
+  const mapPlaces = useMemo(
+    () =>
+      itineraryEntries
+        .filter(
+          ({ item }) => item.type === "activity" || item.type === "stay",
+        )
+        .map(({ item, day }) => ({
+          title: item.title,
+          key: `${day.id}-${item.title}`,
+          href: mapHrefForTripItem(item),
+        })),
+    [itineraryEntries],
+  );
 
   const dayImportantLinks = useMemo(() => {
     const out = [];
@@ -747,7 +810,7 @@ export default function App() {
 
   function onFilterChange(id) {
     setFilter(id);
-    setDayIndex(0);
+    setDayIndex(1);
     setShowAllItems(false);
     setSimpleListExpanded(false);
     setFxConvForeign("");
@@ -756,7 +819,7 @@ export default function App() {
 
   function onSelectDay(idx) {
     setDayIndex(idx);
-    setShowAllItems(false);
+    setShowAllItems(idx === 0);
     setSimpleListExpanded(false);
     setFxConvForeign("");
     setFxConvTwd("");
@@ -798,6 +861,8 @@ export default function App() {
         visiblePairs={visiblePairs}
         safeIndex={safeIndex}
         totalDays={totalDays}
+        stripTotal={stripTotal}
+        isAllDaysView={isAllDaysView}
         progressPct={progressPct}
         onSelectDay={onSelectDay}
         goPrev={goPrev}
@@ -805,7 +870,13 @@ export default function App() {
       />
 
       {(tab === "home" || tab === "itinerary") && (
-        <InfoPillPanel dayImportantLinks={dayImportantLinks} />
+        <InfoPillPanel
+          dayImportantLinks={dayImportantLinks}
+          customDriveLinks={customDriveLinks}
+          onAddDriveLink={handleAddDriveLink}
+          onUpdateDriveLink={handleUpdateDriveLink}
+          onRemoveDriveLink={handleRemoveDriveLink}
+        />
       )}
 
       {tab === "home" && (
@@ -820,7 +891,10 @@ export default function App() {
           simpleListExpanded={simpleListExpanded}
           onToggleSimpleExpanded={() => setSimpleListExpanded((v) => !v)}
           onExpandSimpleAll={() => setSimpleListExpanded(true)}
-          listItems={listItems}
+          listEntries={listEntries}
+          isAllDaysView={isAllDaysView}
+          totalDays={totalDays}
+          itineraryEntryCount={itineraryEntries.length}
           showAllItems={showAllItems}
           hiddenCount={hiddenCount}
           onToggleShowAllItems={() => setShowAllItems((v) => !v)}
@@ -837,7 +911,10 @@ export default function App() {
           cardRef={cardRef}
           current={current}
           tripData={tripData}
-          listItems={listItems}
+          listEntries={listEntries}
+          isAllDaysView={isAllDaysView}
+          totalDays={totalDays}
+          itineraryEntryCount={itineraryEntries.length}
           showAllItems={showAllItems}
           hiddenCount={hiddenCount}
           onToggleShowAllItems={() => setShowAllItems((v) => !v)}
@@ -849,7 +926,7 @@ export default function App() {
       )}
 
       {tab === "map" && (
-        <MapPage current={current} items={items} mapPlaces={mapPlaces} />
+        <MapPage current={mapCurrent} items={items} mapPlaces={mapPlaces} />
       )}
 
       {tab === "wallet" && (

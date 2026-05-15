@@ -47,6 +47,18 @@ export function splitTimeForCard(time) {
   return { main: time.trim(), sub: '' }
 }
 
+/** 行程左欄日期（e.g. "5/15（四）" → "5/15"） */
+export function formatDayLabelShort(label, dayId) {
+  const fromLabel = String(label ?? '').match(/^(\d{1,2}\/\d{1,2})/)
+  if (fromLabel) return fromLabel[1]
+  const id = String(dayId ?? '')
+  if (/^\d{4}-\d{2}-\d{2}$/.test(id)) {
+    const [, mo, d] = id.split('-')
+    return `${Number(mo)}/${Number(d)}`
+  }
+  return String(label ?? '').split('（')[0]?.trim() ?? ''
+}
+
 /** 將單側 "H:MM" / "HH:MM" 正規成下拉選單用字串；無法辨識則回傳空 */
 function normalizeOneHmPart(part) {
   const t = String(part ?? '').trim()

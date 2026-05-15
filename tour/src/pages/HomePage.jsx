@@ -13,7 +13,10 @@ export function HomePage({
   simpleListExpanded,
   onToggleSimpleExpanded,
   onExpandSimpleAll,
-  listItems,
+  listEntries,
+  isAllDaysView,
+  totalDays,
+  itineraryEntryCount,
   showAllItems,
   hiddenCount,
   onToggleShowAllItems,
@@ -41,7 +44,10 @@ export function HomePage({
         cardRef={cardRef}
         current={current}
         tripData={tripData}
-        listItems={listItems}
+        listEntries={listEntries}
+        isAllDaysView={isAllDaysView}
+        totalDays={totalDays}
+        itineraryEntryCount={itineraryEntryCount}
         showAllItems={showAllItems}
         hiddenCount={hiddenCount}
         onToggleShowAll={onToggleShowAllItems}

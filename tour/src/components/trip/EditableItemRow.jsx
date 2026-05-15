@@ -6,6 +6,7 @@ import {
   mapUrlFromTripItem,
   normalizeUserMapUrl,
   parseActivityTimeParts,
+  formatDayLabelShort,
   splitTimeForCard,
 } from '../../utils/tripFormat.js'
 import { IconNavSend, IconPencilSmall, IconTrashSmall } from '../icons/Icons.jsx'
@@ -36,6 +37,8 @@ export function EditableItemRow({
   regionLabel = '',
   regionFallbackLabel = '',
   regionTagOptions = [],
+  dayLabel = '',
+  dayId = '',
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState({
@@ -58,6 +61,7 @@ export function EditableItemRow({
   }
 
   const hasTime = item.time && item.type !== 'stay' && item.type !== 'block'
+  const dateLine = formatDayLabelShort(dayLabel, dayId)
 
   const timeCol =
     item.type === 'stay' ? (
@@ -69,6 +73,10 @@ export function EditableItemRow({
     ) : (
       <span className="trip-time trip-time--muted">—</span>
     )
+
+  const dateAbove = dateLine ? (
+    <span className="trip-item-date">{dateLine}</span>
+  ) : null
 
   const rowClass = [
     'trip-row',
@@ -313,6 +321,7 @@ export function EditableItemRow({
       <article className={cardClass}>
         <div className="trip-card__inner">
           <div className="trip-card__timeCol">
+            {dateAbove}
             <span className="trip-card__timeMain">{timeMain}</span>
             {timeSub ? <span className="trip-card__timeSub">{timeSub}</span> : null}
           </div>
@@ -357,7 +366,10 @@ export function EditableItemRow({
   return (
     <article className={rowClass}>
       <div className="trip-row-inner">
-        <div className="trip-row-time">{timeCol}</div>
+        <div className="trip-row-time">
+          {dateAbove}
+          {timeCol}
+        </div>
         <div className="trip-row-body">
           <button type="button" className="trip-row-edit-btn" aria-label="編輯此項目" onClick={openEdit}>
             編輯

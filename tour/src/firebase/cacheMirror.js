@@ -1,6 +1,7 @@
 import { saveTripData } from '../tripStorage.js'
 import { saveWallet } from '../walletStorage.js'
 import { saveSpots } from '../spotsStorage.js'
+import { saveCustomDriveLinks } from '../driveLinksStorage.js'
 import { persistPackingState } from '../packingListStorage.js'
 import { saveCodeSnapshot } from './tourCodeCache.js'
 import { isValidShareCode, normalizeShareCode } from './shareCodeUtils.js'
@@ -34,17 +35,25 @@ function setPayloadCookies(rawJson) {
  * 將與 Firebase 同步後的完整快照寫回 localStorage，並以多段 Cookie 備份同一份 JSON。
  * 若資料極大，Cookie 可能達瀏覽器上限而失敗，localStorage 仍為主要來源。
  */
-export function mirrorTourDataToBrowserCaches({ tripData, wallet, spots, packing, shareCode }) {
+export function mirrorTourDataToBrowserCaches({
+  tripData,
+  wallet,
+  spots,
+  packing,
+  driveLinks,
+  shareCode,
+}) {
   saveTripData(tripData)
   saveWallet(wallet)
   saveSpots(spots)
   if (packing) persistPackingState(packing)
+  if (driveLinks) saveCustomDriveLinks(driveLinks)
   const code = normalizeShareCode(shareCode)
   const cacheTarget = code && isValidShareCode(code) ? code : ''
-  saveCodeSnapshot(cacheTarget, { tripData, wallet, spots, packing })
+  saveCodeSnapshot(cacheTarget, { tripData, wallet, spots, packing, driveLinks })
   if (typeof document === 'undefined') return
   try {
-    const payload = JSON.stringify({ tripData, wallet, spots, packing })
+    const payload = JSON.stringify({ tripData, wallet, spots, packing, driveLinks })
     setPayloadCookies(payload)
   } catch (e) {
     console.warn('[tour] 寫入 Cookie 備份失敗（資料可能過大）', e)

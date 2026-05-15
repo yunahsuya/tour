@@ -1,8 +1,8 @@
-import { prepareTripData } from '../tripStorage.js'
-import { loadTripData } from '../tripStorage.js'
-import { loadWallet, normalizeWallet } from '../walletStorage.js'
+import { loadTripData, loadTripDataWithMeta, prepareTripData } from '../tripStorage.js'
+import { loadWallet, normalizeWallet, remapWalletDayIds, saveWallet } from '../walletStorage.js'
 import { loadSpots } from '../spotsStorage.js'
 import { loadPackingState, packingStateFromJson, packingStateToJson } from '../packingListStorage.js'
+import { loadCustomDriveLinks, normalizeDriveLinks } from '../driveLinksStorage.js'
 import { loadShareCode } from './shareCodeStorage.js'
 import { isValidShareCode, normalizeShareCode } from './shareCodeUtils.js'
 
@@ -58,7 +58,7 @@ export function markCodeSyncSeeded(code) {
   }
 }
 
-export function saveCodeSnapshot(code, { tripData, wallet, spots, packing }) {
+export function saveCodeSnapshot(code, { tripData, wallet, spots, packing, driveLinks }) {
   if (typeof localStorage === 'undefined') return
   try {
     const payload = {
@@ -66,6 +66,7 @@ export function saveCodeSnapshot(code, { tripData, wallet, spots, packing }) {
       wallet: normalizeWallet(wallet),
       spots: spots?.spots ? spots : { spots: [] },
       packing: packingStateToJson(packing),
+      driveLinks: driveLinks ? normalizeDriveLinks(driveLinks) : undefined,
       savedAt: Date.now(),
     }
     localStorage.setItem(snapshotStorageKey(code), JSON.stringify(payload))
@@ -81,17 +82,43 @@ export function loadCodeSnapshot(code) {
     if (!raw) return null
     const p = JSON.parse(raw)
     if (!p || typeof p !== 'object') return null
-    const trip = Array.isArray(p.trip) && p.trip.length > 0 ? prepareTripData(p.trip) : null
-    const wallet = p.wallet && typeof p.wallet === 'object' ? normalizeWallet(p.wallet) : null
+    const prepared =
+      Array.isArray(p.trip) && p.trip.length > 0 ? prepareTripData(p.trip) : null
+    const trip = prepared?.trip ?? null
+    let wallet =
+      p.wallet && typeof p.wallet === 'object' ? normalizeWallet(p.wallet) : null
+    if (wallet && prepared?.dayIdRemap?.size) {
+      wallet = remapWalletDayIds(wallet, prepared.dayIdRemap)
+    }
     let spots = null
     if (p.spots && typeof p.spots === 'object' && Array.isArray(p.spots.spots)) {
       spots = { spots: p.spots.spots }
     }
     const packing = p.packing ? packingStateFromJson(p.packing) : null
-    if (!trip && !wallet && !spots && !packing) return null
-    return { tripData: trip, wallet, spots, packing }
+    const driveLinks =
+      p.driveLinks && typeof p.driveLinks === 'object'
+        ? normalizeDriveLinks(p.driveLinks)
+        : null
+    if (!trip && !wallet && !spots && !packing && !driveLinks) return null
+    return { tripData: trip, wallet, spots, packing, driveLinks }
   } catch {
     return null
+  }
+}
+
+function bundleFromLocalStorage() {
+  const { trip: tripData, dayIdRemap } = loadTripDataWithMeta()
+  let wallet = loadWallet()
+  if (dayIdRemap.size) {
+    wallet = remapWalletDayIds(wallet, dayIdRemap)
+    saveWallet(wallet)
+  }
+  return {
+    tripData,
+    wallet,
+    spots: loadSpots(),
+    packing: loadPackingState(),
+    driveLinks: loadCustomDriveLinks(),
   }
 }
 
@@ -106,6 +133,7 @@ export function loadInitialTourBundle() {
         wallet: snap.wallet ?? loadWallet(),
         spots: snap.spots ?? loadSpots(),
         packing: snap.packing ?? loadPackingState(),
+        driveLinks: snap.driveLinks ?? loadCustomDriveLinks(),
       }
     }
   } else {
@@ -116,13 +144,9 @@ export function loadInitialTourBundle() {
         wallet: localSnap.wallet ?? loadWallet(),
         spots: localSnap.spots ?? loadSpots(),
         packing: localSnap.packing ?? loadPackingState(),
+        driveLinks: localSnap.driveLinks ?? loadCustomDriveLinks(),
       }
     }
   }
-  return {
-    tripData: loadTripData(),
-    wallet: loadWallet(),
-    spots: loadSpots(),
-    packing: loadPackingState(),
-  }
+  return bundleFromLocalStorage()
 }

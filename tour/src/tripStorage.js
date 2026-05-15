@@ -28,24 +28,64 @@ export function mergeTripWithDefaults(trip) {
   return { trip: merged, changed }
 }
 
-/** 合併缺漏地區、排序項目；有補齊時寫回本機 */
+/**
+ * 合併相同日期 label 的重複天（例如舊雲端倫敦 5/15 與台灣 5/15 各一筆）
+ * @returns {{ trip: typeof regions, changed: boolean, dayIdRemap: Map<string, string> }}
+ */
+export function collapseDuplicateDayLabels(trip) {
+  const labelToKeeper = new Map()
+  const dayIdRemap = new Map()
+  let changed = false
+  const result = trip.map((region) => {
+    const kept = []
+    for (const day of region.days) {
+      const keeper = labelToKeeper.get(day.label)
+      if (keeper) {
+        keeper.day.items = [...keeper.day.items, ...day.items]
+        dayIdRemap.set(day.id, keeper.day.id)
+        changed = true
+        continue
+      }
+      labelToKeeper.set(day.label, { day })
+      kept.push(day)
+    }
+    return { ...region, days: kept }
+  })
+  return { trip: result, changed, dayIdRemap }
+}
+
+/** 合併缺漏地區、去重日期、排序項目；有變更時寫回本機 */
 export function prepareTripData(raw) {
-  const { trip, changed } = mergeTripWithDefaults(raw)
-  const ordered = normalizeTripItemOrder(trip)
-  if (changed) saveTripData(ordered)
-  return ordered
+  const { trip: merged, changed: mergeChanged } = mergeTripWithDefaults(raw)
+  const {
+    trip: deduped,
+    changed: dedupeChanged,
+    dayIdRemap,
+  } = collapseDuplicateDayLabels(merged)
+  const ordered = normalizeTripItemOrder(deduped)
+  if (mergeChanged || dedupeChanged) saveTripData(ordered)
+  return { trip: ordered, dayIdRemap }
 }
 
 export function loadTripData() {
-  if (typeof localStorage === 'undefined') return cloneDefault()
+  return loadTripDataWithMeta().trip
+}
+
+/** 載入行程並回傳合併重複日期時的 dayId 對照（供記帳遷移） */
+export function loadTripDataWithMeta() {
+  if (typeof localStorage === 'undefined') {
+    return { trip: cloneDefault(), dayIdRemap: new Map() }
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return cloneDefault()
+    if (!raw) return { trip: cloneDefault(), dayIdRemap: new Map() }
     const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed) || parsed.length === 0) return cloneDefault()
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return { trip: cloneDefault(), dayIdRemap: new Map() }
+    }
     return prepareTripData(parsed)
   } catch {
-    return cloneDefault()
+    return { trip: cloneDefault(), dayIdRemap: new Map() }
   }
 }
 

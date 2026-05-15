@@ -16,8 +16,8 @@
   --radius-xl: 28px;
   --radius-lg: 22px;
   --radius-md: 16px;
-  --font-serif: 'Cormorant Garamond', 'Noto Serif TC', Georgia, serif;
-  --font-sans: 'DM Sans', 'Noto Sans TC', system-ui, sans-serif;
+  --font-serif: "Cormorant Garamond", "Noto Serif TC", Georgia, serif;
+  --font-sans: "DM Sans", "Noto Sans TC", system-ui, sans-serif;
 
   min-height: 100svh;
   padding: 20px 18px 108px;
@@ -63,7 +63,9 @@
   cursor: pointer;
   display: grid;
   place-items: center;
-  transition: transform 0.15s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.2s ease;
 }
 
 .hero-settings:hover {
@@ -210,6 +212,17 @@
 
 .date-card--active .date-card-m {
   color: rgba(255, 253, 248, 0.85);
+}
+
+.date-card-n--all {
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+
+.main-card-all-sub {
+  margin: 0 0 12px;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
 }
 
 .day-progress {
@@ -374,6 +387,95 @@
   margin-top: 4px;
   font-size: 0.74rem;
   color: #a8988e;
+}
+
+.info-pill-drive-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.info-pill-section-kicker--inline {
+  margin-bottom: 0;
+  flex: 1 1 auto;
+}
+
+.info-pill-drive-add-btn {
+  flex-shrink: 0;
+  margin-top: 12px;
+  padding: 6px 12px;
+  border: 1px dashed rgba(140, 125, 110, 0.55);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #6b5a42;
+  cursor: pointer;
+}
+
+.info-pill-drive-add-btn:hover {
+  background: #f7f3ec;
+  color: #4a3b32;
+}
+
+.info-pill-drive-row--custom {
+  padding-top: 12px;
+}
+
+.info-pill-drive-custom {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.info-pill-drive-custom-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.info-pill-drive-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.info-pill-drive-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #8a7d72;
+  cursor: pointer;
+}
+
+.info-pill-drive-icon-btn:hover {
+  background: rgba(107, 90, 66, 0.1);
+  color: #5c524a;
+}
+
+.info-pill-drive-icon-btn--danger:hover {
+  background: rgba(160, 70, 60, 0.12);
+  color: #9a4a42;
+}
+
+.info-pill-drive-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.info-pill-drive-form--add {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(140, 125, 110, 0.28);
 }
 
 .main-card {
@@ -634,10 +736,15 @@ select.trip-input--select,
 .trip-input--select {
   cursor: pointer;
   appearance: none;
-  background-image: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%),
     linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
-  background-position: calc(100% - 18px) calc(50% + 2px), calc(100% - 13px) calc(50% + 2px);
-  background-size: 5px 5px, 5px 5px;
+  background-position:
+    calc(100% - 18px) calc(50% + 2px),
+    calc(100% - 13px) calc(50% + 2px);
+  background-size:
+    5px 5px,
+    5px 5px;
   background-repeat: no-repeat;
   padding-right: 2.25rem;
 }
@@ -704,12 +811,33 @@ select.trip-input--select,
 }
 
 .trip-row-time {
-  font-family: var(--font-serif);
-  font-size: 1.05rem;
-  font-weight: 600;
-  line-height: 1.25;
-  color: var(--ink);
   padding-top: 2px;
+  line-height: 1.25;
+}
+
+.trip-item-date {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: 1.55rem;
+  font-weight: 900;
+  line-height: 1.1;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+.trip-row-time .trip-time {
+  font-family: var(--font-serif);
+  font-size: 1.28rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.trip-row-time .trip-time--tag,
+.trip-row-time .trip-time--muted {
+  font-family: var(--font-sans);
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--ink-soft);
 }
 
 .trip-time {
@@ -835,7 +963,9 @@ select.trip-input--select,
   background: var(--accent);
   box-shadow: var(--shadow-soft);
   cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.2s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.2s ease;
 }
 
 .install-banner:hover {
@@ -941,7 +1071,7 @@ select.trip-input--select,
 }
 
 .bottom-nav-item--active::after {
-  content: '';
+  content: "";
   position: absolute;
   bottom: 2px;
   left: 50%;
@@ -1858,7 +1988,7 @@ select.trip-input--select,
   background: #fff;
 }
 
-.wallet-item-combo-option[aria-selected='true'] {
+.wallet-item-combo-option[aria-selected="true"] {
   border-color: rgba(62, 50, 41, 0.35);
   background: rgba(62, 50, 41, 0.06);
 }
@@ -2216,16 +2346,20 @@ select.trip-input--select,
   }
 }
 
+.trip-card__timeCol .trip-item-date {
+  margin-bottom: 4px;
+}
+
 .trip-card__timeMain {
   font-family: var(--font-serif);
-  font-size: 1.35rem;
+  font-size: 1.28rem;
   font-weight: 600;
-  line-height: 1.1;
+  line-height: 1.15;
   color: var(--ink);
 }
 
 .trip-card__timeSub {
-  font-size: 0.72rem;
+  font-size: 0.88rem;
   color: var(--ink-soft);
   line-height: 1.2;
 }
@@ -2330,7 +2464,11 @@ select.trip-input--select,
 }
 
 .trip-card--stay {
-  background: linear-gradient(135deg, rgba(255, 253, 248, 1), rgba(250, 244, 232, 0.95));
+  background: linear-gradient(
+    135deg,
+    rgba(255, 253, 248, 1),
+    rgba(250, 244, 232, 0.95)
+  );
 }
 
 .trip-card--stay .trip-card__inner {
@@ -2531,7 +2669,11 @@ select.trip-input--select,
   margin-bottom: 14px;
   padding: 14px 16px;
   border-radius: var(--radius-lg);
-  background: linear-gradient(135deg, rgba(198, 40, 40, 0.08), rgba(198, 40, 40, 0.02));
+  background: linear-gradient(
+    135deg,
+    rgba(198, 40, 40, 0.08),
+    rgba(198, 40, 40, 0.02)
+  );
   border: 1px solid rgba(198, 40, 40, 0.22);
   box-shadow: var(--shadow-soft);
 }
@@ -3021,4 +3163,3 @@ select.trip-input--select,
 .packing-ref-add-submit:hover {
   background: rgba(74, 59, 50, 0.06);
 }
-

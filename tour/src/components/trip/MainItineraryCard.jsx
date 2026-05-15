@@ -9,7 +9,10 @@ export function MainItineraryCard({
   cardRef,
   current,
   tripData,
-  listItems,
+  listEntries,
+  isAllDaysView,
+  totalDays,
+  itineraryEntryCount,
   showAllItems,
   hiddenCount,
   onToggleShowAll,
@@ -32,7 +35,7 @@ export function MainItineraryCard({
       <div className="main-card-head">
         <div className="main-card-head-left">
           <IconCalendar />
-          <h2 className="main-card-title">今日行程</h2>
+          <h2 className="main-card-title">{isAllDaysView ? '全部行程' : '今日行程'}</h2>
         </div>
         <button
           type="button"
@@ -45,13 +48,19 @@ export function MainItineraryCard({
         </button>
       </div>
 
-      {current && (
-        <EditableDaySubline
-          flag={current.region.flag}
-          label={current.day.label}
-          subtitle={current.day.subtitle}
-          onUpdate={onUpdateDay}
-        />
+      {isAllDaysView ? (
+        <p className="main-card-all-sub">
+          共 {totalDays} 天 · {itineraryEntryCount} 個行程
+        </p>
+      ) : (
+        current && (
+          <EditableDaySubline
+            flag={current.region.flag}
+            label={current.day.label}
+            subtitle={current.day.subtitle}
+            onUpdate={onUpdateDay}
+          />
+        )
       )}
 
       {isHome && (
@@ -61,19 +70,23 @@ export function MainItineraryCard({
       )}
 
       <div className={isHome ? 'trip-list trip-list--cards' : 'trip-list'}>
-        {listItems.map((item, i) => {
-          const fallback = current?.region.name.split('（')[0]?.trim() ?? ''
+        {listEntries.map((entry) => {
+          const { item, region, day, itemIndex } = entry
+          const fallback = region.name.split('（')[0]?.trim() ?? ''
+          const regionLabel = (item.regionTag?.trim() || fallback).trim()
           return (
             <EditableItemRow
-              key={`${current?.day.id}-${i}`}
+              key={`${day.id}-${itemIndex}`}
               item={item}
-              itemIndex={i}
-              onUpdate={onUpdateItem}
-              onRemove={onRemoveItem}
+              itemIndex={itemIndex}
+              onUpdate={(_, patch) => onUpdateItem(entry, patch)}
+              onRemove={(_idx) => onRemoveItem(entry)}
               layout={isHome ? 'card' : 'row'}
-              regionLabel={(item.regionTag?.trim() || fallback).trim()}
+              regionLabel={regionLabel}
               regionFallbackLabel={fallback}
               regionTagOptions={regionTagOptions}
+              dayLabel={day.label}
+              dayId={day.id}
             />
           )
         })}
