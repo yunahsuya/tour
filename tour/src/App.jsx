@@ -29,6 +29,7 @@ import { ItineraryPage } from './pages/ItineraryPage.jsx'
 import { MapPage } from './pages/MapPage.jsx'
 import { SpotsPage } from './pages/SpotsPage.jsx'
 import { WalletPage } from './pages/WalletPage.jsx'
+import { useFirebaseTourSync } from './firebase/useFirebaseTourSync.js'
 import './App.css'
 
 export default function App() {
@@ -65,6 +66,15 @@ export default function App() {
   const [isOffline, setIsOffline] = useState(
     typeof navigator !== 'undefined' ? !navigator.onLine : false,
   )
+
+  useFirebaseTourSync({
+    tripData,
+    wallet,
+    spots,
+    setTripData,
+    setWallet,
+    setSpots,
+  })
 
   useEffect(() => {
     function onOnline() {
