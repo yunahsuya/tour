@@ -86,13 +86,15 @@ export default function App() {
     typeof navigator !== "undefined" ? !navigator.onLine : false,
   );
 
-  useFirebaseTourSync({
+  const tourSync = useFirebaseTourSync({
     tripData,
     wallet,
     spots,
+    packingListState,
     setTripData,
     setWallet,
     setSpots,
+    setPackingListState,
   });
 
   useEffect(() => {
@@ -690,7 +692,16 @@ export default function App() {
         onFilterChange={onFilterChange}
       />
 
-      <ShareSyncBar />
+      <ShareSyncBar
+        firebaseEnabled={tourSync.firebaseEnabled}
+        shareCode={tourSync.shareCode}
+        syncReady={tourSync.syncReady}
+        syncBusy={tourSync.syncBusy}
+        syncError={tourSync.syncError}
+        onCreateCode={tourSync.createShareCode}
+        onJoinCode={tourSync.joinShareCode}
+        onLeaveCode={tourSync.leaveShareCode}
+      />
 
       <DateStrip
         stripRef={stripRef}
@@ -849,9 +860,7 @@ export default function App() {
         </button>
       )}
       <p className="fine-print">
-        行程請在該列點「編輯」修改文字與地圖連結；備用景點請在卡片點「編輯」修改名稱、地圖連結與備註。齒輪可重設預設。所有編輯內容皆寫入本機瀏覽器（localStorage），並以
-        Cookie
-        記錄最近儲存時間；換裝置不會自動同步。行李清單可依家庭成員（妹妹、姊姊、媽媽、爸爸）分開勾選與自訂項目；下方航空參考區的標題、說明與每則備註皆可新增、編輯、刪除。
+        行程請在該列點「編輯」修改文字與地圖連結；備用景點請在卡片點「編輯」修改名稱、地圖連結與備註。齒輪可重設預設。未加入行程代碼時，資料僅存在本機瀏覽器；加入代碼後可跨裝置同步（見上方區塊）。行李清單可依家庭成員（妹妹、姊姊、媽媽、爸爸）分開勾選與自訂項目；下方航空參考區的標題、說明與每則備註皆可新增、編輯、刪除。
         離線：請先以 HTTPS 部署或本機執行 npm run build 後 npm run
         preview，用瀏覽器完整開啟一次再關閉網路；已安裝為 App 者亦可離線開啟。
         PWA：Chrome／Edge「安裝應用程式」；iPhone Safari「加入主畫面」。

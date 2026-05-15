@@ -1,6 +1,7 @@
 import { saveTripData } from '../tripStorage.js'
 import { saveWallet } from '../walletStorage.js'
 import { saveSpots } from '../spotsStorage.js'
+import { persistPackingState } from '../packingListStorage.js'
 
 const COOKIE_PREFIX = 'tour_fb_'
 /** 單一 cookie 值需小於約 4KB；中文 JSON 經 encodeURIComponent 會膨脹，保守切片 */
@@ -31,13 +32,14 @@ function setPayloadCookies(rawJson) {
  * 將與 Firebase 同步後的完整快照寫回 localStorage，並以多段 Cookie 備份同一份 JSON。
  * 若資料極大，Cookie 可能達瀏覽器上限而失敗，localStorage 仍為主要來源。
  */
-export function mirrorTourDataToBrowserCaches({ tripData, wallet, spots }) {
+export function mirrorTourDataToBrowserCaches({ tripData, wallet, spots, packing }) {
   saveTripData(tripData)
   saveWallet(wallet)
   saveSpots(spots)
+  if (packing) persistPackingState(packing)
   if (typeof document === 'undefined') return
   try {
-    const payload = JSON.stringify({ tripData, wallet, spots })
+    const payload = JSON.stringify({ tripData, wallet, spots, packing })
     setPayloadCookies(payload)
   } catch (e) {
     console.warn('[tour] 寫入 Cookie 備份失敗（資料可能過大）', e)

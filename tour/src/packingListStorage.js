@@ -97,8 +97,7 @@ function parseReferenceBlocks(raw) {
   return out
 }
 
-function parseFullState(raw) {
-  const p = JSON.parse(raw)
+function parsePackingPayload(p) {
   const profiles = allProfilesEmpty()
   if (p.profiles && typeof p.profiles === 'object') {
     for (const { id } of PACKING_PROFILES) {
@@ -113,36 +112,51 @@ function parseFullState(raw) {
   return { activeProfileId: active, profiles, referenceBlocks }
 }
 
+function parseFullState(raw) {
+  return parsePackingPayload(JSON.parse(raw))
+}
+
+/** 可寫入 Firestore 的純 JSON 行李清單快照 */
+export function packingStateToJson(state) {
+  const profiles = {}
+  for (const { id } of PACKING_PROFILES) {
+    profiles[id] = serializeProfileSlice(state.profiles[id] ?? emptyProfile())
+  }
+  const refObj = {}
+  for (const key of PACKING_REFERENCE_BLOCK_ORDER) {
+    const b = state.referenceBlocks?.[key]
+    if (!b) continue
+    refObj[key] = {
+      title: typeof b.title === 'string' ? b.title : '',
+      note: typeof b.note === 'string' ? b.note : '',
+      bullets: Array.isArray(b.bullets)
+        ? b.bullets.map(({ id, text }) => ({
+            id: typeof id === 'string' ? id : newRefBulletId(),
+            text: typeof text === 'string' ? text : '',
+          }))
+        : [],
+    }
+  }
+  return {
+    activeProfileId: state.activeProfileId,
+    profiles,
+    reference: refObj,
+  }
+}
+
+export function packingStateFromJson(data) {
+  if (!data || typeof data !== 'object') return null
+  try {
+    return parsePackingPayload(data)
+  } catch {
+    return null
+  }
+}
+
 export function persistPackingState(state) {
   if (typeof localStorage === 'undefined') return
   try {
-    const profiles = {}
-    for (const { id } of PACKING_PROFILES) {
-      profiles[id] = serializeProfileSlice(state.profiles[id] ?? emptyProfile())
-    }
-    const refObj = {}
-    for (const key of PACKING_REFERENCE_BLOCK_ORDER) {
-      const b = state.referenceBlocks?.[key]
-      if (!b) continue
-      refObj[key] = {
-        title: typeof b.title === 'string' ? b.title : '',
-        note: typeof b.note === 'string' ? b.note : '',
-        bullets: Array.isArray(b.bullets)
-          ? b.bullets.map(({ id, text }) => ({
-              id: typeof id === 'string' ? id : newRefBulletId(),
-              text: typeof text === 'string' ? text : '',
-            }))
-          : [],
-      }
-    }
-    localStorage.setItem(
-      KEY_V4,
-      JSON.stringify({
-        activeProfileId: state.activeProfileId,
-        profiles,
-        reference: refObj,
-      }),
-    )
+    localStorage.setItem(KEY_V4, JSON.stringify(packingStateToJson(state)))
     touchLocalDataSavedCookie()
   } catch {
     // ignore

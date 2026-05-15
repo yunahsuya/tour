@@ -4,7 +4,8 @@
  * VITE_FIREBASE_STORAGE_BUCKET、VITE_FIREBASE_MESSAGING_SENDER_ID、VITE_FIREBASE_APP_ID
  *
  * Firebase Console → Authentication → Sign-in method → 啟用「匿名」。
- * Firestore 規則請見專案內 `firestore.rules`。
+ * Firestore 規則請見專案內 `firestore.rules`（集合 `sharedTours`）。
+ * 畫面上建立／輸入行程代碼後，多裝置會讀寫同一份 `sharedTours/{代碼}`。
  */
 export function isFirebaseConfigured() {
   return Boolean(

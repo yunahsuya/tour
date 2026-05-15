@@ -1,9 +1,10 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 匿名登入 uid 與文件 id 一致時才可讀寫自己的旅遊資料
-    match /userTours/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    // 共用行程代碼：已匿名登入且代碼格式合法（6–16 位大寫英數）
+    match /sharedTours/{tripId} {
+      allow read, write: if request.auth != null
+        && tripId.matches('^[A-Z0-9]{6,16}$');
     }
   }
 }
