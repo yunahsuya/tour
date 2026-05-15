@@ -41,3 +41,13 @@ export function removeItemFromTrip(trip, regionId, dayId, itemIndex) {
     }
   })
 }
+
+export function updateDayInTrip(trip, regionId, dayId, patch) {
+  return trip.map((region) => {
+    if (region.id !== regionId) return region
+    return {
+      ...region,
+      days: region.days.map((day) => (day.id !== dayId ? day : { ...day, ...patch })),
+    }
+  })
+}

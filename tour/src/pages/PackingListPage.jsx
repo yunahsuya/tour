@@ -17,6 +17,8 @@ export function PackingListPage({
   onSelectProfile,
   checkedIds,
   customsBySection,
+  hiddenDefaultIds,
+  labelOverrides,
   referenceBlocks,
   onRefUpdateTitle,
   onRefUpdateNote,
@@ -26,21 +28,32 @@ export function PackingListPage({
   onToggle,
   onClearAll,
   onAddCustom,
-  onRemoveCustom,
+  onUpdateLabel,
+  onDeleteItem,
 }) {
   const [draftBySection, setDraftBySection] = useState({})
+  const [editingItemId, setEditingItemId] = useState(null)
+  const [editDraft, setEditDraft] = useState('')
 
   useEffect(() => {
     setDraftBySection({})
+    setEditingItemId(null)
+    setEditDraft('')
   }, [activeProfileId])
 
   const sectionsRows = useMemo(() => {
     return PACKING_CHECKLIST_SECTIONS.map((sec) => {
-      const defaults = sec.items.map((it) => ({ ...it, isCustom: false }))
+      const defaults = sec.items
+        .filter((it) => !hiddenDefaultIds.has(it.id))
+        .map((it) => ({
+          ...it,
+          label: labelOverrides[it.id] ?? it.label,
+          isCustom: false,
+        }))
       const customs = (customsBySection[sec.id] ?? []).map((it) => ({ ...it, isCustom: true }))
       return { sec, rows: [...defaults, ...customs] }
     })
-  }, [customsBySection])
+  }, [customsBySection, hiddenDefaultIds, labelOverrides])
 
   const { total, done } = useMemo(() => {
     const ids = new Set()
@@ -64,6 +77,26 @@ export function PackingListPage({
     }
     onAddCustom(sectionId, text)
     setDraftBySection((prev) => ({ ...prev, [sectionId]: '' }))
+  }
+
+  function startEditItem(it) {
+    setEditingItemId(it.id)
+    setEditDraft(it.label)
+  }
+
+  function cancelEditItem() {
+    setEditingItemId(null)
+    setEditDraft('')
+  }
+
+  function saveEditItem(sec, it) {
+    const text = editDraft.trim()
+    if (!text) {
+      window.alert('項目名稱不能為空，若要刪除請用刪除鈕。')
+      return
+    }
+    onUpdateLabel(sec.id, it.id, it.isCustom, text)
+    cancelEditItem()
   }
 
   return (
@@ -116,8 +149,41 @@ export function PackingListPage({
           <ul className="packing-list">
             {rows.map((it) => {
               const on = checkedIds.has(it.id)
+              const isEditing = editingItemId === it.id
               return (
                 <li key={it.id} className="packing-row">
+                  {isEditing ? (
+                    <div className="packing-row-edit">
+                      <input
+                        type="text"
+                        className="packing-row-edit-input"
+                        value={editDraft}
+                        onChange={(e) => setEditDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            saveEditItem(sec, it)
+                          }
+                          if (e.key === 'Escape') cancelEditItem()
+                        }}
+                        maxLength={200}
+                        aria-label="編輯項目名稱"
+                        autoFocus
+                      />
+                      <div className="packing-row-edit-actions">
+                        <button type="button" className="packing-ref-mini-btn" onClick={() => saveEditItem(sec, it)}>
+                          儲存
+                        </button>
+                        <button
+                          type="button"
+                          className="packing-ref-mini-btn packing-ref-mini-btn--ghost"
+                          onClick={cancelEditItem}
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
                   <div className="packing-row-main">
                     <label className="packing-check-label">
                       <input
@@ -128,19 +194,28 @@ export function PackingListPage({
                       />
                       <span className={on ? 'packing-label packing-label--done' : 'packing-label'}>{it.label}</span>
                     </label>
-                    {it.isCustom ? (
-                      <button
-                        type="button"
-                        className="packing-del"
-                        aria-label={`刪除「${it.label}」`}
-                        onClick={() => {
-                          if (window.confirm(`要刪除自訂項目「${it.label}」嗎？`)) onRemoveCustom(sec.id, it.id)
-                        }}
-                      >
-                        <IconTrashSmall />
-                      </button>
-                    ) : null}
+                      <div className="packing-row-actions">
+                        <button
+                          type="button"
+                          className="packing-row-btn"
+                          aria-label={`編輯「${it.label}」`}
+                          onClick={() => startEditItem(it)}
+                        >
+                          <IconPencilSmall />
+                        </button>
+                        <button
+                          type="button"
+                          className="packing-row-btn packing-row-btn--danger"
+                          aria-label={`刪除「${it.label}」`}
+                          onClick={() => {
+                            if (window.confirm(`要刪除「${it.label}」嗎？`)) onDeleteItem(sec.id, it.id, it.isCustom)
+                          }}
+                        >
+                          <IconTrashSmall />
+                        </button>
+                      </div>
                   </div>
+                  )}
                 </li>
               )
             })}

@@ -11,6 +11,7 @@ export function ItineraryPage({
   onShowAllItems,
   onUpdateItem,
   onRemoveItem,
+  onUpdateDay,
 }) {
   return (
     <MainItineraryCard
@@ -25,6 +26,7 @@ export function ItineraryPage({
       onShowAll={onShowAllItems}
       onUpdateItem={onUpdateItem}
       onRemoveItem={onRemoveItem}
+      onUpdateDay={onUpdateDay}
     />
   )
 }

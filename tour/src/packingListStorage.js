@@ -14,7 +14,12 @@ const SECTION_IDS = new Set(PACKING_CHECKLIST_SECTIONS.map((s) => s.id))
 const PROFILE_IDS = new Set(PACKING_PROFILES.map((p) => p.id))
 
 function emptyProfile() {
-  return { checked: new Set(), customsBySection: {} }
+  return {
+    checked: new Set(),
+    customsBySection: {},
+    hiddenDefaultIds: new Set(),
+    labelOverrides: {},
+  }
 }
 
 function normalizeCustoms(raw) {
@@ -30,12 +35,33 @@ function normalizeCustoms(raw) {
   return out
 }
 
+function normalizeLabelOverrides(raw) {
+  const out = {}
+  if (!raw || typeof raw !== 'object') return out
+  for (const [k, v] of Object.entries(raw)) {
+    if (typeof k === 'string' && typeof v === 'string' && v.trim()) {
+      out[k.trim()] = v.trim().slice(0, 200)
+    }
+  }
+  return out
+}
+
 function parseProfileSlice(data) {
   if (!data || typeof data !== 'object') return emptyProfile()
   const checked = new Set(
     Array.isArray(data.checked) ? data.checked.filter((x) => typeof x === 'string') : [],
   )
-  return { checked, customsBySection: normalizeCustoms(data.customs) }
+  const hiddenDefaultIds = new Set(
+    Array.isArray(data.hiddenDefaults)
+      ? data.hiddenDefaults.filter((x) => typeof x === 'string')
+      : [],
+  )
+  return {
+    checked,
+    customsBySection: normalizeCustoms(data.customs),
+    hiddenDefaultIds,
+    labelOverrides: normalizeLabelOverrides(data.labelOverrides),
+  }
 }
 
 function serializeProfileSlice(slice) {
@@ -44,7 +70,18 @@ function serializeProfileSlice(slice) {
     const list = slice.customsBySection[sid]
     if (list?.length) customs[sid] = list
   }
-  return { checked: [...slice.checked], customs }
+  const labelOverrides = {}
+  if (slice.labelOverrides && typeof slice.labelOverrides === 'object') {
+    for (const [k, v] of Object.entries(slice.labelOverrides)) {
+      if (typeof v === 'string' && v.trim()) labelOverrides[k] = v
+    }
+  }
+  return {
+    checked: [...slice.checked],
+    customs,
+    hiddenDefaults: [...(slice.hiddenDefaultIds ?? [])],
+    labelOverrides,
+  }
 }
 
 function allProfilesEmpty() {
@@ -170,7 +207,12 @@ function migrateFromV3Single(raw3) {
   )
   const customsBySection = normalizeCustoms(old.customs)
   const profiles = allProfilesEmpty()
-  profiles[PACKING_DEFAULT_PROFILE_ID] = { checked, customsBySection }
+  profiles[PACKING_DEFAULT_PROFILE_ID] = {
+    checked,
+    customsBySection,
+    hiddenDefaultIds: new Set(),
+    labelOverrides: {},
+  }
   const state = {
     activeProfileId: PACKING_DEFAULT_PROFILE_ID,
     profiles,
@@ -189,7 +231,12 @@ function migrateFromV2(raw2) {
   const arr = JSON.parse(raw2)
   const checked = new Set(Array.isArray(arr) ? arr.filter((x) => typeof x === 'string') : [])
   const profiles = allProfilesEmpty()
-  profiles[PACKING_DEFAULT_PROFILE_ID] = { checked, customsBySection: {} }
+  profiles[PACKING_DEFAULT_PROFILE_ID] = {
+    checked,
+    customsBySection: {},
+    hiddenDefaultIds: new Set(),
+    labelOverrides: {},
+  }
   const state = {
     activeProfileId: PACKING_DEFAULT_PROFILE_ID,
     profiles,

@@ -20,6 +20,7 @@ export function HomePage({
   onShowAllItems,
   onUpdateItem,
   onRemoveItem,
+  onUpdateDay,
   onNavigateTab,
 }) {
   return (
@@ -47,6 +48,7 @@ export function HomePage({
         onShowAll={onShowAllItems}
         onUpdateItem={onUpdateItem}
         onRemoveItem={onRemoveItem}
+        onUpdateDay={onUpdateDay}
       />
     </>
   )

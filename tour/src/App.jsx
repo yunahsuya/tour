@@ -24,6 +24,7 @@ import { EMPTY_ITEMS, WALLET_PAYERS } from "./constants/appConstants.js";
 import {
   appendItemToTrip,
   removeItemFromTrip,
+  updateDayInTrip,
   updateItemInTrip,
 } from "./tripEdit.js";
 import { mapHrefForTripItem } from "./utils/tripFormat.js";
@@ -216,6 +217,17 @@ export default function App() {
       current.region.id,
       current.day.id,
       itemIndex,
+      patch,
+    );
+    persist(next);
+  }
+
+  function handleUpdateDay(patch) {
+    if (!current) return;
+    const next = updateDayInTrip(
+      tripData,
+      current.region.id,
+      current.day.id,
       patch,
     );
     persist(next);
@@ -507,7 +519,62 @@ export default function App() {
       else delete nextCustoms[sectionId];
       const nextChecked = new Set(slice.checked);
       nextChecked.delete(itemId);
-      const nextSlice = { checked: nextChecked, customsBySection: nextCustoms };
+      const nextSlice = {
+        ...slice,
+        checked: nextChecked,
+        customsBySection: nextCustoms,
+      };
+      const nextProfiles = { ...prev.profiles, [pid]: nextSlice };
+      const next = { ...prev, profiles: nextProfiles };
+      persistPackingState(next);
+      return next;
+    });
+  }
+
+  function handlePackingUpdateLabel(sectionId, itemId, isCustom, label) {
+    const trimmed = label.trim();
+    if (!trimmed) return;
+    setPackingListState((prev) => {
+      const pid = prev.activeProfileId;
+      const slice = prev.profiles[pid];
+      let nextSlice;
+      if (isCustom) {
+        const list = (slice.customsBySection[sectionId] ?? []).map((x) =>
+          x.id === itemId ? { ...x, label: trimmed } : x,
+        );
+        const nextCustoms = { ...slice.customsBySection, [sectionId]: list };
+        nextSlice = { ...slice, customsBySection: nextCustoms };
+      } else {
+        const nextOverrides = { ...slice.labelOverrides, [itemId]: trimmed };
+        nextSlice = { ...slice, labelOverrides: nextOverrides };
+      }
+      const nextProfiles = { ...prev.profiles, [pid]: nextSlice };
+      const next = { ...prev, profiles: nextProfiles };
+      persistPackingState(next);
+      return next;
+    });
+  }
+
+  function handlePackingDeleteItem(sectionId, itemId, isCustom) {
+    if (isCustom) {
+      handlePackingRemoveCustom(sectionId, itemId);
+      return;
+    }
+    setPackingListState((prev) => {
+      const pid = prev.activeProfileId;
+      const slice = prev.profiles[pid];
+      const nextHidden = new Set(slice.hiddenDefaultIds);
+      nextHidden.add(itemId);
+      const nextOverrides = { ...slice.labelOverrides };
+      delete nextOverrides[itemId];
+      const nextChecked = new Set(slice.checked);
+      nextChecked.delete(itemId);
+      const nextSlice = {
+        ...slice,
+        checked: nextChecked,
+        hiddenDefaultIds: nextHidden,
+        labelOverrides: nextOverrides,
+      };
       const nextProfiles = { ...prev.profiles, [pid]: nextSlice };
       const next = { ...prev, profiles: nextProfiles };
       persistPackingState(next);
@@ -760,6 +827,7 @@ export default function App() {
           onShowAllItems={() => setShowAllItems(true)}
           onUpdateItem={handleUpdateItem}
           onRemoveItem={handleRemoveItem}
+          onUpdateDay={handleUpdateDay}
           onNavigateTab={setTab}
         />
       )}
@@ -776,6 +844,7 @@ export default function App() {
           onShowAllItems={() => setShowAllItems(true)}
           onUpdateItem={handleUpdateItem}
           onRemoveItem={handleRemoveItem}
+          onUpdateDay={handleUpdateDay}
         />
       )}
 
@@ -865,6 +934,14 @@ export default function App() {
             packingListState.profiles[packingListState.activeProfileId]
               .customsBySection
           }
+          hiddenDefaultIds={
+            packingListState.profiles[packingListState.activeProfileId]
+              .hiddenDefaultIds
+          }
+          labelOverrides={
+            packingListState.profiles[packingListState.activeProfileId]
+              .labelOverrides
+          }
           referenceBlocks={packingListState.referenceBlocks}
           onRefUpdateTitle={handleRefUpdateTitle}
           onRefUpdateNote={handleRefUpdateNote}
@@ -874,7 +951,8 @@ export default function App() {
           onToggle={handlePackingToggle}
           onClearAll={handlePackingClearAll}
           onAddCustom={handlePackingAddCustom}
-          onRemoveCustom={handlePackingRemoveCustom}
+          onUpdateLabel={handlePackingUpdateLabel}
+          onDeleteItem={handlePackingDeleteItem}
         />
       )}
 

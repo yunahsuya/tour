@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { IconCalendar } from '../icons/Icons.jsx'
+import { EditableDaySubline } from './EditableDaySubline.jsx'
 import { EditableItemRow } from './EditableItemRow.jsx'
 import { regionChipLabel } from '../../utils/tripFormat.js'
 
@@ -15,6 +16,7 @@ export function MainItineraryCard({
   onShowAll,
   onUpdateItem,
   onRemoveItem,
+  onUpdateDay,
 }) {
   const isHome = variant === 'home'
   const regionTagOptions = useMemo(
@@ -44,10 +46,12 @@ export function MainItineraryCard({
       </div>
 
       {current && (
-        <p className="main-card-sub">
-          {current.region.flag} {current.day.label}
-          {current.day.subtitle ? ` · ${current.day.subtitle}` : ''}
-        </p>
+        <EditableDaySubline
+          flag={current.region.flag}
+          label={current.day.label}
+          subtitle={current.day.subtitle}
+          onUpdate={onUpdateDay}
+        />
       )}
 
       {isHome && (
