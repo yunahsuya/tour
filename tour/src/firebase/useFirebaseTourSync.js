@@ -11,6 +11,7 @@ import {
 } from 'firebase/firestore'
 import { getFirebaseConfig, isFirebaseConfigured } from './config.js'
 import { mirrorTourDataToBrowserCaches } from './cacheMirror.js'
+import { prepareTripData } from '../tripStorage.js'
 import { normalizeWallet } from '../walletStorage.js'
 import { packingStateFromJson, packingStateToJson } from '../packingListStorage.js'
 import { clearShareCode, loadShareCode, saveShareCode } from './shareCodeStorage.js'
@@ -118,11 +119,11 @@ export function useFirebaseTourSync({
       const { trip, wallet: w, spots: sp, packing: pk } = parseFirestorePayload(data)
       applyingRemote.current = true
       try {
-        if (trip && trip.length > 0) setTripData(trip)
+        if (trip && trip.length > 0) setTripData(prepareTripData(trip))
         if (w) setWallet(w)
         if (sp) setSpots(sp)
         if (pk) setPackingListState(pk)
-        const td = trip && trip.length > 0 ? trip : tripRef.current
+        const td = trip && trip.length > 0 ? prepareTripData(trip) : tripRef.current
         const wl = w ?? walletRef.current
         const st = sp ?? spotsRef.current
         const pkUse = pk ?? packingRef.current

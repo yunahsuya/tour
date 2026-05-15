@@ -8,6 +8,34 @@ function cloneDefault() {
   return structuredClone(regions)
 }
 
+/** 將本機／雲端舊行程補上預設裡新增的地區（例如台灣），保留既有編輯 */
+export function mergeTripWithDefaults(trip) {
+  if (!Array.isArray(trip) || trip.length === 0) {
+    return { trip: cloneDefault(), changed: true }
+  }
+  const savedById = new Map(trip.map((r) => [r.id, r]))
+  const defaultIds = new Set(regions.map((r) => r.id))
+  let changed = false
+  const merged = regions.map((def) => {
+    const existing = savedById.get(def.id)
+    if (existing) return existing
+    changed = true
+    return structuredClone(def)
+  })
+  for (const r of trip) {
+    if (!defaultIds.has(r.id)) merged.push(r)
+  }
+  return { trip: merged, changed }
+}
+
+/** 合併缺漏地區、排序項目；有補齊時寫回本機 */
+export function prepareTripData(raw) {
+  const { trip, changed } = mergeTripWithDefaults(raw)
+  const ordered = normalizeTripItemOrder(trip)
+  if (changed) saveTripData(ordered)
+  return ordered
+}
+
 export function loadTripData() {
   if (typeof localStorage === 'undefined') return cloneDefault()
   try {
@@ -15,7 +43,7 @@ export function loadTripData() {
     if (!raw) return cloneDefault()
     const parsed = JSON.parse(raw)
     if (!Array.isArray(parsed) || parsed.length === 0) return cloneDefault()
-    return normalizeTripItemOrder(parsed)
+    return prepareTripData(parsed)
   } catch {
     return cloneDefault()
   }
