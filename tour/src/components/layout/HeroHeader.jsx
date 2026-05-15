@@ -1,4 +1,5 @@
 import { IconGear } from '../icons/Icons.jsx'
+import { regionChipLabel } from '../../utils/tripFormat.js'
 
 export function HeroHeader({ tripData, filter, onResetTrip, onFilterChange }) {
   return (
@@ -10,12 +11,8 @@ export function HeroHeader({ tripData, filter, onResetTrip, onFilterChange }) {
       <h1 className="hero-title">倫敦巴塞首爾 遊記</h1>
       <nav className="region-chips" aria-label="地區篩選">
         {['all', ...tripData.map((r) => r.id)].map((id) => {
-          const label =
-            id === 'all'
-              ? '全部'
-              : `${tripData.find((r) => r.id === id)?.flag ?? ''} ${
-                  tripData.find((r) => r.id === id)?.name.split('（')[0] ?? ''
-                }`.trim()
+          const region = tripData.find((r) => r.id === id)
+          const label = id === 'all' ? '全部' : regionChipLabel(region)
           return (
             <button
               key={id}

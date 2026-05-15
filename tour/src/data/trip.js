@@ -1,5 +1,5 @@
 /** @typedef {{ label: string, href: string }} TripLink */
-/** @typedef {{ type: 'stay'|'block'|'activity', time?: string, title: string, detail?: string, mapUrl?: string, links?: TripLink[], emphasis?: 'question'|'alert'|'booking' }} TripItem */
+/** @typedef {{ type: 'stay'|'block'|'activity', time?: string, title: string, detail?: string, mapUrl?: string, links?: TripLink[], emphasis?: 'question'|'alert'|'booking', regionTag?: string }} TripItem */
 /** @typedef {{ id: string, label: string, subtitle?: string, items: TripItem[] }} TripDay */
 
 /** 整趟旅程共用的 Google Drive 資料夾 */
@@ -10,12 +10,13 @@ export const tripDriveLinks = [
   { label: '住宿', href: 'https://drive.google.com/drive/folders/1X0a38GZxkc0ZXJnVwLQ7elinHshHlDB2' },
 ]
 
-/** @type {{ id: string, name: string, flag: string, days: TripDay[] }[]} */
+/** @type {{ id: string, name: string, flag: string, code: string, days: TripDay[] }[]} */
 export const regions = [
   {
-    id: 'london',
-    name: '倫敦（含桃園中轉、劍橋一日）',
-    flag: '🇬🇧',
+    id: 'taiwan',
+    name: '台灣（桃園過境、去程與返抵）',
+    flag: '🇹🇼',
+    code: 'TW',
     days: [
       {
         id: '2026-05-15',
@@ -66,6 +67,31 @@ export const regions = [
           },
         ],
       },
+      {
+        id: '2026-05-25-tw',
+        label: '5/25（一）',
+        subtitle: '返抵台灣',
+        items: [
+          {
+            type: 'activity',
+            title: '航程／抵達航點機場',
+            detail: '台北松山（TSA）或 金門（KNH）· 入境、出關、領行李',
+          },
+          {
+            type: 'activity',
+            title: '返台',
+            detail: '結束韓國行程',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'london',
+    name: '倫敦（含劍橋一日）',
+    flag: '🇬🇧',
+    code: 'GB',
+    days: [
       {
         id: '2026-05-17',
         label: '5/17（六）',
@@ -287,6 +313,7 @@ export const regions = [
     id: 'barcelona',
     name: '巴塞隆納',
     flag: '🇪🇸',
+    code: 'ES',
     days: [
       {
         id: '2026-05-20-bcn',
@@ -435,6 +462,7 @@ export const regions = [
     id: 'seoul',
     name: '首爾（仁川入境）',
     flag: '🇰🇷',
+    code: 'KR',
     days: [
       {
         id: '2026-05-24',
@@ -489,25 +517,40 @@ export const regions = [
             title: '首爾金浦（GMP）機場',
             detail: '報到、候機、登機',
           },
-          {
-            type: 'activity',
-            title: '航程／抵達航點機場',
-            detail: '台北松山（TSA）或 金門（KNH）· 入境、出關、領行李',
-          },
-          {
-            type: 'activity',
-            title: '返台',
-            detail: '結束韓國行程',
-          },
         ],
       },
     ],
   },
 ]
 
+/** 同日多段 id 後綴時的排序（數字愈大愈晚） */
+const DAY_ID_SUFFIX_ORDER = { am: 1, bcn: 2, tw: 3 }
+
+/**
+ * @param {string} dayId
+ * @returns {[number, number, string]}
+ */
+function chronTupleForDayId(dayId) {
+  const id = String(dayId)
+  const m = id.match(/^(\d{4})-(\d{2})-(\d{2})(?:-([a-z0-9]+))?$/i)
+  if (!m) return [0, 0, id]
+  const n = parseInt(m[1], 10) * 10000 + parseInt(m[2], 10) * 100 + parseInt(m[3], 10)
+  const suf = (m[4] ?? '').toLowerCase()
+  const ord = DAY_ID_SUFFIX_ORDER[suf] ?? (suf ? 50 : 0)
+  return [n, ord, id]
+}
+
 /**
  * @param {typeof regions} [data]
  */
 export function flattenDays(data = regions) {
-  return data.flatMap((r) => r.days.map((d) => ({ region: r, day: d })))
+  const pairs = data.flatMap((r) => r.days.map((d) => ({ region: r, day: d })))
+  pairs.sort((a, b) => {
+    const [na, oa, ia] = chronTupleForDayId(a.day.id)
+    const [nb, ob, ib] = chronTupleForDayId(b.day.id)
+    if (na !== nb) return na - nb
+    if (oa !== ob) return oa - ob
+    return ia.localeCompare(ib)
+  })
+  return pairs
 }

@@ -1,3 +1,5 @@
+import { touchLocalDataSavedCookie } from './localDataMarker.js'
+
 const KEY = 'tour-wallet-v1'
 
 /** 內建項目選項（順序固定在最前） */
@@ -42,6 +44,7 @@ export function saveWallet(data) {
   if (typeof localStorage === 'undefined') return
   try {
     localStorage.setItem(KEY, JSON.stringify(normalizeWallet(data)))
+    touchLocalDataSavedCookie()
   } catch {
     // ignore
   }
