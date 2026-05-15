@@ -1422,6 +1422,100 @@ select.trip-input--select,
   color: var(--ink-soft);
 }
 
+.wallet-breakdown-kicker--detail {
+  margin-top: 22px;
+}
+
+.wallet-payer-detail {
+  margin-top: 4px;
+}
+
+.wallet-payer-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 12px;
+}
+
+.wallet-payer-tab {
+  flex: 1 1 calc(25% - 6px);
+  min-width: 3.2rem;
+  padding: 8px 6px;
+  border: 1px solid rgba(124, 98, 70, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 252, 247, 0.65);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.wallet-payer-tab--on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-on);
+}
+
+.wallet-payer-detail-total {
+  margin: 0 0 10px;
+  font-size: 0.88rem;
+  color: var(--ink);
+}
+
+.wallet-payer-detail-total strong {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.wallet-empty--inline {
+  margin: 0 0 8px;
+}
+
+.wallet-payer-detail-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wallet-payer-detail-item {
+  padding: 8px 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  border-bottom: 1px dashed rgba(62, 50, 41, 0.12);
+}
+
+.wallet-payer-detail-text {
+  display: block;
+}
+
+.wallet-export-bar {
+  display: flex;
+  gap: 10px;
+  margin: 14px 0 4px;
+}
+
+.wallet-export-btn {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid rgba(124, 98, 70, 0.35);
+  border-radius: 10px;
+  background: rgba(255, 252, 247, 0.85);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.wallet-export-btn:hover {
+  background: #fff;
+  border-color: var(--accent);
+}
+
+.wallet-export-btn:active {
+  transform: scale(0.98);
+}
+
 .panel-wallet {
   margin-bottom: 96px;
 }

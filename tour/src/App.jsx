@@ -15,6 +15,7 @@ import {
   normalizeWallet,
   removeWalletEntry,
   saveWallet,
+  listEntriesByPayer,
   sumAllByPayer,
   sumDay,
 } from "./walletStorage.js";
@@ -59,6 +60,7 @@ export default function App() {
   const [wallet, setWallet] = useState(() => loadWallet());
   const [spots, setSpots] = useState(() => loadSpots());
   const [walletMode, setWalletMode] = useState("daily");
+  const [walletPayerTab, setWalletPayerTab] = useState(WALLET_PAYERS[0]);
   const [walletNote, setWalletNote] = useState("");
   const [walletItemMenuOpen, setWalletItemMenuOpen] = useState(false);
   const [walletItemNewDraft, setWalletItemNewDraft] = useState("");
@@ -612,6 +614,14 @@ export default function App() {
     [allPairs, wallet],
   );
 
+  const dayLabelById = useMemo(() => {
+    const m = new Map();
+    for (const { day } of allPairs) {
+      m.set(day.id, day.label);
+    }
+    return m;
+  }, [allPairs]);
+
   const walletPayerBreakdown = useMemo(() => {
     const rows = sumAllByPayer(wallet);
     const rank = (name) => {
@@ -627,6 +637,16 @@ export default function App() {
       return b[1] - a[1];
     });
   }, [wallet]);
+
+  const walletPayerEntries = useMemo(
+    () => listEntriesByPayer(wallet, walletPayerTab, dayLabelById),
+    [wallet, walletPayerTab, dayLabelById],
+  );
+
+  const walletPayerTabTotal = useMemo(
+    () => walletPayerEntries.reduce((s, r) => s + (r.entry.twd || 0), 0),
+    [walletPayerEntries],
+  );
 
   const mapPlaces = items
     .filter((it) => it.type === "activity" || it.type === "stay")
@@ -793,6 +813,11 @@ export default function App() {
           handleRemoveWalletEntry={handleRemoveWalletEntry}
           walletBreakdown={walletBreakdown}
           walletPayerBreakdown={walletPayerBreakdown}
+          walletPayerTab={walletPayerTab}
+          setWalletPayerTab={setWalletPayerTab}
+          walletPayerEntries={walletPayerEntries}
+          walletPayerTabTotal={walletPayerTabTotal}
+          dayLabelById={dayLabelById}
           setWallet={setWallet}
           setWalletNote={setWalletNote}
           persistWallet={commitWallet}

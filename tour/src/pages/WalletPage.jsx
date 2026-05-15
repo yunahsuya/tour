@@ -11,7 +11,12 @@ import {
   formatRateLine,
   parseAmountInput,
 } from '../fxRates.js'
-import { formatWalletDateLine, formatWalletEntryDisplay } from '../utils/walletFormat.js'
+import {
+  formatWalletDateLine,
+  formatWalletEntryDisplay,
+  formatWalletPayerDetailRow,
+} from '../utils/walletFormat.js'
+import { downloadWalletCsv, downloadWalletPng } from '../utils/walletExport.js'
 
 export function WalletPage({
   current,
@@ -45,6 +50,11 @@ export function WalletPage({
   handleRemoveWalletEntry,
   walletBreakdown,
   walletPayerBreakdown,
+  walletPayerTab,
+  setWalletPayerTab,
+  walletPayerEntries,
+  walletPayerTabTotal,
+  dayLabelById,
   setWallet,
   setWalletNote,
   persistWallet,
@@ -83,7 +93,7 @@ export function WalletPage({
             </p>
             <p className="wallet-card-subline">{walletSummarySub}</p>
             <span className="wallet-card-deco" aria-hidden>
-              €
+              {'\u20AC'}
             </span>
           </div>
 
@@ -310,6 +320,31 @@ export function WalletPage({
             NT$ <strong>{sumAll(wallet).toLocaleString('zh-TW')}</strong>
           </p>
           <p className="wallet-card-subline">各日台幣加總 · 外幣已換算為台幣</p>
+          {walletBreakdown.length > 0 ? (
+            <div className="wallet-export-bar" aria-label="匯出記帳資料">
+              <button
+                type="button"
+                className="wallet-export-btn"
+                onClick={() => downloadWalletCsv(wallet, dayLabelById)}
+              >
+                匯出 CSV
+              </button>
+              <button
+                type="button"
+                className="wallet-export-btn"
+                onClick={() =>
+                  downloadWalletPng({
+                    wallet,
+                    dayLabelById,
+                    walletBreakdown,
+                    walletPayerBreakdown,
+                  })
+                }
+              >
+                匯出 PNG
+              </button>
+            </div>
+          ) : null}
           {walletBreakdown.length === 0 ? (
             <p className="wallet-empty">尚無紀錄，切到「每日」新增支出。</p>
           ) : (
@@ -333,6 +368,48 @@ export function WalletPage({
                       </li>
                     ))}
                   </ul>
+                  <div className="wallet-payer-detail" aria-label="付款人支出細項">
+                    <p className="wallet-breakdown-kicker wallet-breakdown-kicker--detail">
+                      支出細項
+                    </p>
+                    <div className="wallet-payer-tabs" role="tablist" aria-label="切換付款人">
+                      {WALLET_PAYERS.map((name) => (
+                        <button
+                          key={name}
+                          type="button"
+                          role="tab"
+                          aria-selected={walletPayerTab === name}
+                          className={
+                            walletPayerTab === name
+                              ? 'wallet-payer-tab wallet-payer-tab--on'
+                              : 'wallet-payer-tab'
+                          }
+                          onClick={() => setWalletPayerTab(name)}
+                        >
+                          {name}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="wallet-payer-detail-total">
+                      {walletPayerTab} 合計{' '}
+                      <strong>NT$ {walletPayerTabTotal.toLocaleString('zh-TW')}</strong>
+                    </p>
+                    {walletPayerEntries.length === 0 ? (
+                      <p className="wallet-empty wallet-empty--inline">
+                        {walletPayerTab} 尚無支出紀錄。
+                      </p>
+                    ) : (
+                      <ul className="wallet-payer-detail-list">
+                        {walletPayerEntries.map(({ dayLabel, entry }) => (
+                          <li key={entry.id} className="wallet-payer-detail-item">
+                            <span className="wallet-payer-detail-text">
+                              {formatWalletPayerDetailRow(dayLabel, entry)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </>
               ) : null}
             </>

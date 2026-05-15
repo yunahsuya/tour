@@ -120,6 +120,14 @@ export function sumAll(data) {
     .reduce((s, e) => s + (e.twd || 0), 0)
 }
 
+/** 舊資料「姐姐」與選單「姊姊」視為同一人 */
+export function normalizePayerName(raw) {
+  if (!raw || !String(raw).trim()) return '未指定付款人'
+  const t = String(raw).trim()
+  if (t === '姐姐') return '姊姊'
+  return t
+}
+
 /** 累積：各付款人台幣加總（外幣已換算為 twd）。無 paidBy 計入「未指定付款人」。 */
 export function sumAllByPayer(data) {
   const w = normalizeWallet(data)
@@ -127,12 +135,50 @@ export function sumAllByPayer(data) {
   for (const list of Object.values(w.byDay)) {
     if (!Array.isArray(list)) continue
     for (const e of list) {
-      const key =
-        e.paidBy && String(e.paidBy).trim() ? String(e.paidBy).trim() : '未指定付款人'
+      const key = normalizePayerName(e.paidBy)
       map.set(key, (map.get(key) || 0) + (Number(e.twd) || 0))
     }
   }
   return [...map.entries()]
     .filter(([, sum]) => sum !== 0)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-Hant'))
+}
+
+/** 累積：全部支出（含日期標籤、正規化付款人） */
+export function listAllWalletEntries(data, dayLabelById = new Map()) {
+  const w = normalizeWallet(data)
+  const rows = []
+  for (const [dayId, list] of Object.entries(w.byDay)) {
+    if (!Array.isArray(list)) continue
+    for (const e of list) {
+      rows.push({
+        dayId,
+        dayLabel: dayLabelById.get(dayId) ?? dayId,
+        entry: e,
+        paidBy: normalizePayerName(e.paidBy),
+      })
+    }
+  }
+  rows.sort((a, b) => a.dayId.localeCompare(b.dayId))
+  return rows
+}
+
+/** 累積：指定付款人的每筆支出（含日期標籤） */
+export function listEntriesByPayer(data, payer, dayLabelById = new Map()) {
+  const target = normalizePayerName(payer)
+  const w = normalizeWallet(data)
+  const rows = []
+  for (const [dayId, list] of Object.entries(w.byDay)) {
+    if (!Array.isArray(list)) continue
+    for (const e of list) {
+      if (normalizePayerName(e.paidBy) !== target) continue
+      rows.push({
+        dayId,
+        dayLabel: dayLabelById.get(dayId) ?? dayId,
+        entry: e,
+      })
+    }
+  }
+  rows.sort((a, b) => a.dayId.localeCompare(b.dayId))
+  return rows
 }

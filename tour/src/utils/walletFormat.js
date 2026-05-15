@@ -21,3 +21,14 @@ export function formatWalletEntryDisplay(e) {
   }
   return s
 }
+
+/** 付款人細項列（累積模式，已依付款人篩選） */
+export function formatWalletPayerDetailRow(dayLabel, e) {
+  let s = `${dayLabel} · ${e.note} · NT$ ${e.twd.toLocaleString('zh-TW')}`
+  if (e.foreignCurrency && e.foreignAmount != null) {
+    const L = FX_LABELS[e.foreignCurrency]
+    const sym = L?.sym ?? ''
+    s += `（${e.foreignAmount} ${sym} ${e.foreignCurrency}）`
+  }
+  return s
+}
